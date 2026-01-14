@@ -1,4 +1,10 @@
 flask
 pytest
-flask-sqlalchemy
+redis
+celery
+gevent
+flower
 requests
+Flask-Pydantic
+flask-sqlalchemy
+faker
