@@ -8,3 +8,4 @@ requests
 Flask-Pydantic
 flask-sqlalchemy
 faker
+pydantic[email]
