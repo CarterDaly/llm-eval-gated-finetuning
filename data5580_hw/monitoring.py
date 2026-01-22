@@ -6,20 +6,28 @@ from prometheus_client import CollectorRegistry, Counter, Histogram, multiproces
 registry = CollectorRegistry()
 multiprocess.MultiProcessCollector(registry=registry)
 
-REQUEST_COUNT = Counter(name='requests_count', documentation='Total number of requests', labelnames=['method','endpoint'])
+REQUEST_COUNT = Counter('request_count', 'Total number of requests', ['method', 'endpoint', 'http_status'],
+                        registry=registry)
+REQUEST_LATENCY = Histogram('request_latency_seconds', 'Request latency in seconds',
+                            ['method', 'endpoint', 'http_status'], registry=registry)
 
 
 def before_request():
     request.start_time = time.time()
 
+
 def after_request(response):
     latency = time.time() - request.start_time
     path = request.url_rule.rule
     REQUEST_COUNT.labels(method=request.method, endpoint=path, http_status=response.status_code).inc()
-    REQUEST_COUNT.labels(method=request.method, endpoint=path, http_status=response.status_code).observe(latency)
+    REQUEST_LATENCY.labels(method=request.method, endpoint=path, http_status=response.status_code).observe(latency)
     return response
 
+
 def init_metrics(app):
-    with app.app_context():
-        app.before_request(before_request)
-                                                                                                 
+
+    if not app.config["TESTING"]:
+        with app.app_context():
+            app.before_request(before_request)
+
+            app.after_request(after_request)

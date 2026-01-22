@@ -1,6 +1,9 @@
+from unittest import TestCase
+
 import pytest
 
 from data5580_hw.app import create_app
+
 
 @pytest.fixture
 def client():
@@ -17,13 +20,38 @@ def test_home_route(client):
     assert response.json == {"message": "Hello, Flask!"}
 
 
-def test_add_success(client):
-    response = client.post("/add", json={"a": 2, "b": 3})
+def test_create_user(client):
+    response = client.post("/user", json={"email": "test@example.com", "name": "test"})
     assert response.status_code == 200
-    assert response.json["result"] == 5
 
 
-def test_add_missing_values(client):
-    response = client.post("/add", json={"a": 2})
-    assert response.status_code == 400
-    assert "error" in response.json
+def test_get_user(client):
+    payload = {"email": "test@example.com", "name": "test"}
+    response = client.post("/user", json=payload)
+    assert response.status_code == 200
+
+    id = response.get_json(force=True)['id']
+    assert id is not None
+
+    payload['id'] = id
+    response = client.get("/user/{}".format(id))
+    TestCase().assertDictEqual(response.get_json(force=True), payload)
+
+
+def test_update_user(client):
+    payload = {"email": "test@example.com", "name": "test"}
+    response = client.post("/user", json=payload)
+    assert response.status_code == 200
+
+    id = response.get_json(force=True)['id']
+    assert id is not None
+
+    payload = {"email": "test@example.com", "name": "test2"}
+    response = client.patch("/user/{}".format(id), json=payload)
+    assert response.status_code == 200
+
+    payload['id'] = id
+    response = client.get("/user/{}".format(id))
+    TestCase().assertDictEqual(response.get_json(force=True), payload)
+
+    assert response.get_json(force=True)["name"] == "test2"
