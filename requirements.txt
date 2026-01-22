@@ -1,2 +1,12 @@
 flask
 pytest
+redis
+celery
+gevent
+flower
+requests
+Flask-Pydantic
+flask-sqlalchemy
+faker
+pydantic[email]
+prometheus-client
