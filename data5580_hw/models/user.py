@@ -12,3 +12,8 @@ class User(BaseModel):
     email: EmailStr
 
     id: str = Field(default_factory=get_id)
+
+
+class UserUpdate(BaseModel):
+    name: str | None = None
+    email: EmailStr | None = None

@@ -5,16 +5,31 @@ from data5580_hw.controllers.user import user_controller
 user = Blueprint("user", __name__)
 
 
-@user.route("/user/<user_id>", methods=["GET"])
+@user.route("/users/<user_id>", methods=["GET"])
 def get_user_by_id(user_id: str):
     return user_controller.get_user_by_id(user_id)
 
 
-@user.route("/user", methods=["POST"])
+@user.route("/users", methods=["POST"])
 def create_user():
     return user_controller.create_user()
 
 
-@user.route("/user/<user_id>", methods=["PATCH"])
+@user.route("/users/<user_id>", methods=["PATCH"])
 def update_user(user_id: str):
     return user_controller.update_user(user_id=user_id)
+
+
+@user.route("/users/<user_id>", methods=["PUT"])
+def replace_user(user_id: str):
+    return user_controller.replace_user(user_id=user_id)
+
+
+@user.route("/users/<user_id>", methods=["DELETE"])
+def delete_user(user_id: str):
+    return user_controller.delete_user(user_id=user_id)
+
+
+@user.route("/users", methods=["GET"])
+def list_users():
+    return user_controller.list_users()
