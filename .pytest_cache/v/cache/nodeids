@@ -1,5 +1,22 @@
 [
   "tests/test_app.py::test_add_missing_values",
   "tests/test_app.py::test_add_success",
-  "tests/test_app.py::test_home_route"
+  "tests/test_app.py::test_create_user_duplicate_email",
+  "tests/test_app.py::test_create_user_ignores_client_id",
+  "tests/test_app.py::test_create_user_invalid_email",
+  "tests/test_app.py::test_create_user_missing_fields",
+  "tests/test_app.py::test_create_user_success",
+  "tests/test_app.py::test_delete_user_not_found",
+  "tests/test_app.py::test_delete_user_success",
+  "tests/test_app.py::test_get_user_not_found",
+  "tests/test_app.py::test_get_user_success",
+  "tests/test_app.py::test_home_route",
+  "tests/test_app.py::test_list_users",
+  "tests/test_app.py::test_replace_user_put_missing_fields",
+  "tests/test_app.py::test_replace_user_put_not_found",
+  "tests/test_app.py::test_replace_user_put_success",
+  "tests/test_app.py::test_update_user_patch_duplicate_email",
+  "tests/test_app.py::test_update_user_patch_missing_fields",
+  "tests/test_app.py::test_update_user_patch_not_found",
+  "tests/test_app.py::test_update_user_patch_success"
 ]
