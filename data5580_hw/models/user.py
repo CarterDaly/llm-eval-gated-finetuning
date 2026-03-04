@@ -1,10 +1,7 @@
 import uuid
 
 from pydantic import BaseModel, Field, EmailStr
-
-
-def get_id():
-    return uuid.uuid4().hex
+from data5580_hw.models.base import LocalBaseModel, get_id
 
 
 class User(BaseModel):
