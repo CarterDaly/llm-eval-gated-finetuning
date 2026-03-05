@@ -172,8 +172,4 @@ class UserController:
         users = db.session.query(UserSQL).all()
         return jsonify({"users": [_user_payload(user_sql) for user_sql in users]}), 200
 
-
-
-
-
 user_controller = UserController()

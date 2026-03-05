@@ -15,6 +15,7 @@ def init_db(app) -> None:
 
     with app.app_context():
         from data5580_hw.services.database import user_model  # noqa: F401
+        from data5580_hw.services.database import prediction  # noqa: F401
         try:
             db.drop_all()
         except:
