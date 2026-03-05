@@ -1,0 +1,27 @@
+from flask import Blueprint
+
+from data5580_hw.controllers.prediction import prediction_controller
+
+
+
+prediction = Blueprint("prediction", __name__)
+
+
+@prediction.route("/predictions/model/<model_name>/version/<model_version>", methods=["POST"])
+def create_prediction(model_name: str, model_version: str):
+    return prediction_controller.create_prediction(model_name, model_version)
+
+
+@prediction.route("/model/<model_name>/version/<model_version>", methods=["POST"])
+def create_prediction_legacy(model_name: str, model_version: str):
+    return prediction_controller.create_prediction(model_name, model_version)
+
+
+@prediction.route("/predictions/<prediction_id>", methods=["GET"])
+def get_prediction_by_id(prediction_id: str):
+    return prediction_controller.get_prediction_by_id(prediction_id)
+
+
+@prediction.route("/predictions/<prediction_id>/actual", methods=["PATCH"])
+def update_actual(prediction_id: str):
+    return prediction_controller.update_actual(prediction_id)

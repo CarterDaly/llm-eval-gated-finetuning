@@ -10,3 +10,6 @@ flask-sqlalchemy
 faker
 pydantic[email]
 prometheus-client
+numpy
+pandas
+shap

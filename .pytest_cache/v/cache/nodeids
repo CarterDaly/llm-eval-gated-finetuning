@@ -18,5 +18,9 @@
   "tests/test_app.py::test_update_user_patch_duplicate_email",
   "tests/test_app.py::test_update_user_patch_missing_fields",
   "tests/test_app.py::test_update_user_patch_not_found",
-  "tests/test_app.py::test_update_user_patch_success"
+  "tests/test_app.py::test_update_user_patch_success",
+  "tests/test_prediction.py::test_create_prediction_missing_features_returns_400",
+  "tests/test_prediction.py::test_create_prediction_model_not_found",
+  "tests/test_prediction.py::test_create_prediction_returns_shap_values_and_persists",
+  "tests/test_prediction.py::test_create_prediction_shap_error_returns_400"
 ]
