@@ -12,3 +12,11 @@ class InferenceError(Exception):
 
 class ExplanationError(Exception):
     """Raised when SHAP explanation cannot be computed."""
+
+
+class EmbeddingError(Exception):
+    """Raised when UMAP embedding cannot be computed."""
+
+
+class MlflowLogError(Exception):
+    """Raised when MLflow logging fails."""

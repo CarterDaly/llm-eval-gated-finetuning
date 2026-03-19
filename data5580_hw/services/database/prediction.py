@@ -39,6 +39,10 @@ class ModelSQL(db.Model):
     model_version: Mapped[str] = mapped_column(db.String(4000), nullable=False)
     artifact_path: Mapped[str] = mapped_column(db.String(4000), nullable=True)
     feature_names: Mapped[list] = mapped_column(db.JSON, nullable=True)
+    mlflow_run_id: Mapped[str] = mapped_column(db.String(120), nullable=True)
+    mlflow_tracking_uri: Mapped[str] = mapped_column(db.String(4000), nullable=True)
+    shap_artifact_path: Mapped[str] = mapped_column(db.String(4000), nullable=True)
+    shap_logged_at: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
 
     created: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
     updated: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
@@ -60,6 +64,7 @@ class PredictionSQL(db.Model):
     label: Mapped[object] = mapped_column(db.JSON, nullable=False)
     actual: Mapped[object] = mapped_column(db.JSON, nullable=True)
     threshold: Mapped[float] = mapped_column(db.Float, nullable=True)
+    embeddings: Mapped[dict] = mapped_column(db.JSON, nullable=True)
 
     created: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
     updated: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
@@ -82,6 +87,7 @@ class PredictionSQL(db.Model):
             label=label,
             actual=actual,
             threshold=prediction.threshold,
+            embeddings=prediction.embeddings,
             created=prediction.created,
             updated=prediction.updated,
             model_id=model.id,
@@ -95,6 +101,7 @@ class PredictionSQL(db.Model):
             label=self.label,
             actual=self.actual,
             threshold=self.threshold,
+            embeddings=self.embeddings,
             created=self.created,
             updated=self.updated,
             model=Model(
@@ -104,6 +111,7 @@ class PredictionSQL(db.Model):
                 type=self.model.model_type,
                 artifact_path=self.model.artifact_path,
                 feature_names=self.model.feature_names,
+                mlflow_run_id=self.model.mlflow_run_id,
             ),
             explanations=Explanations.from_explanations(self.explanations)
         )

@@ -19,8 +19,19 @@
   "tests/test_app.py::test_update_user_patch_missing_fields",
   "tests/test_app.py::test_update_user_patch_not_found",
   "tests/test_app.py::test_update_user_patch_success",
+  "tests/test_mlflow_service.py::test_log_shap_once_logs_artifact",
+  "tests/test_mlflow_service.py::test_log_shap_once_requires_run_id",
+  "tests/test_mlflow_service.py::test_log_shap_once_skips_when_existing_artifact_path",
+  "tests/test_prediction.py::test_create_prediction_invalid_umap_config_returns_400",
   "tests/test_prediction.py::test_create_prediction_missing_features_returns_400",
+  "tests/test_prediction.py::test_create_prediction_missing_required_feature_returns_400",
+  "tests/test_prediction.py::test_create_prediction_mlflow_error_returns_500",
+  "tests/test_prediction.py::test_create_prediction_model_load_error_returns_500",
   "tests/test_prediction.py::test_create_prediction_model_not_found",
   "tests/test_prediction.py::test_create_prediction_returns_shap_values_and_persists",
-  "tests/test_prediction.py::test_create_prediction_shap_error_returns_400"
+  "tests/test_prediction.py::test_create_prediction_shap_error_returns_400",
+  "tests/test_prediction.py::test_create_prediction_umap_error_returns_400",
+  "tests/test_umap_service.py::test_axis_names_handles_extra_components",
+  "tests/test_umap_service.py::test_axis_names_requires_minimum_components",
+  "tests/test_umap_service.py::test_create_embedding_uses_umap"
 ]

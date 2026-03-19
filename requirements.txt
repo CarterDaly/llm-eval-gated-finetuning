@@ -13,3 +13,6 @@ prometheus-client
 numpy
 pandas
 shap
+umap-learn
+mlflow
+arize<8.0.0

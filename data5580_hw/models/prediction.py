@@ -2,9 +2,39 @@ from typing import Any, Dict, List, Optional, Union
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, field_validator
 
 from data5580_hw.models.base import LocalBaseModel
+
+
+class UmapConfig(BaseModel):
+    n_neighbors: int = 15
+    min_dist: float = 0.1
+    n_components: int = 2
+    metric: str = "euclidean"
+    random_state: Optional[int] = 42
+    n_jobs: Optional[int] = None
+
+    @field_validator("n_neighbors")
+    @classmethod
+    def _validate_n_neighbors(cls, value: int) -> int:
+        if value < 2:
+            raise ValueError("n_neighbors must be >= 2.")
+        return value
+
+    @field_validator("min_dist")
+    @classmethod
+    def _validate_min_dist(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("min_dist must be >= 0.")
+        return value
+
+    @field_validator("n_components")
+    @classmethod
+    def _validate_n_components(cls, value: int) -> int:
+        if value < 2:
+            raise ValueError("n_components must be >= 2.")
+        return value
 
 
 class PredictionRequest(BaseModel):
@@ -12,6 +42,7 @@ class PredictionRequest(BaseModel):
     tags: Dict[str, Union[int, float, str]] = Field(default_factory=dict)
     actual: Optional[Union[int, float, str]] = None
     threshold: Optional[float] = None
+    umap: Optional[UmapConfig] = None
 
 
 class Explanation(LocalBaseModel):
@@ -40,9 +71,11 @@ class Model(LocalBaseModel):
     type: Optional[str] = None
     artifact_path: Optional[str] = None
     feature_names: Optional[List[str]] = None
+    mlflow_run_id: Optional[str] = None
 
     _model: Any = PrivateAttr(default=None)
     _explainer: Any = PrivateAttr(default=None)
+    _umap: Any = PrivateAttr(default=None)
 
 
 class Prediction(LocalBaseModel):
@@ -52,6 +85,7 @@ class Prediction(LocalBaseModel):
     label: Optional[Union[int, float, str]] = None
     actual: Optional[Union[int, float, str]] = None
     threshold: Optional[float] = None
+    embeddings: Optional[Dict[str, float]] = None
 
     model: Optional[Model] = None
 
