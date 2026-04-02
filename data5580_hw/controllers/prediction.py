@@ -8,7 +8,9 @@ from pydantic import ValidationError
 from data5580_hw.models.prediction import Model, Prediction, PredictionRequest, Explanations, UmapConfig
 from data5580_hw.services.database.database_client import db
 from data5580_hw.services.database.prediction import ExplanationSQL, ModelSQL, PredictionSQL
+from data5580_hw.services.arize_service import arize_service
 from data5580_hw.services.errors import (
+    ArizeLogError,
     EmbeddingError,
     ExplanationError,
     InferenceError,
@@ -161,6 +163,36 @@ def _run_embedding(model: Model, prediction: Prediction, prediction_request: Pre
     return embedding, None
 
 
+def _log_arize_inference(prediction: Prediction, model: Model) -> None:
+    """Submit inference to Arize; failures are non-fatal and logged locally."""
+    try:
+        arize_service.log_inference(
+            prediction_id=prediction.id,
+            model_name=model.name,
+            model_version=model.version,
+            prediction_label=prediction.label,
+            features=prediction.features,
+            actual_label=prediction.actual,
+            shap_values=_extract_shap_values(prediction.explanations),
+            timestamp=prediction.created,
+        )
+    except ArizeLogError:
+        logger.exception("arize_inference_log_failed")
+
+
+def _log_arize_actual(prediction_sql, actual_label) -> None:
+    """Submit updated actual to Arize; failures are non-fatal and logged locally."""
+    try:
+        arize_service.log_actual(
+            prediction_id=prediction_sql.id,
+            model_name=prediction_sql.model.model_name,
+            model_version=prediction_sql.model.model_version,
+            actual_label=actual_label,
+        )
+    except ArizeLogError:
+        logger.exception("arize_actual_log_failed")
+
+
 def _persist_prediction(prediction: Prediction, model: Model):
     prediction_sql = PredictionSQL.from_prediction(prediction, model)
     db.session.add(prediction_sql)
@@ -228,6 +260,8 @@ class PredictionController:
         if error:
             return error
 
+        _log_arize_inference(prediction, model)
+
         return (
             jsonify(
                 {
@@ -285,6 +319,8 @@ class PredictionController:
         except Exception:
             db.session.rollback()
             return jsonify({"error": "Failed to update prediction"}), 500
+
+        _log_arize_actual(prediction_sql, data["actual"])
 
         return jsonify({"message": "Prediction updated", "prediction_id": prediction_id}), 200
 

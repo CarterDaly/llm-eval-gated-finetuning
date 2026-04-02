@@ -20,3 +20,7 @@ class EmbeddingError(Exception):
 
 class MlflowLogError(Exception):
     """Raised when MLflow logging fails."""
+
+
+class ArizeLogError(Exception):
+    """Raised when Arize model monitoring logging fails."""
