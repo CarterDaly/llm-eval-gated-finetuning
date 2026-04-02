@@ -6,7 +6,8 @@ from data5580_hw.app import create_app
 from data5580_hw.models.prediction import Explanation, Explanations
 from data5580_hw.services.database.database_client import db
 from data5580_hw.services.database.prediction import ExplanationSQL, ModelSQL, PredictionSQL
-from data5580_hw.services.errors import EmbeddingError, ExplanationError, MlflowLogError
+from data5580_hw.services.arize_service import arize_service
+from data5580_hw.services.errors import ArizeLogError, EmbeddingError, ExplanationError, MlflowLogError
 from data5580_hw.services.explainer_service import explainer_service
 from data5580_hw.services.mlflow_service import mlflow_service
 from data5580_hw.services.umap_service import umap_service
@@ -277,3 +278,140 @@ def test_create_prediction_mlflow_error_returns_500(app, client, tmp_path, monke
 
     assert response.status_code == 500
     assert response.get_json()["error"] == "Failed to log SHAP values to MLflow."
+
+
+# ---------------------------------------------------------------------------
+# Arize integration – controller-level tests
+# ---------------------------------------------------------------------------
+
+def _fake_explainer_shap(model, prediction):
+    return Explanations(
+        explanations=[
+            Explanation(name="shap_values", values={"feature_1": 0.1, "feature_2": -0.1})
+        ]
+    )
+
+
+def _fake_embedding(model, prediction, config):
+    return {"kind": "inputs", "x": 0.5, "y": -0.5}
+
+
+def _fake_mlflow(**kwargs):
+    return "shap/demo/1/first_inference.json"
+
+
+def test_create_prediction_calls_arize_log_inference(app, client, tmp_path, monkeypatch):
+    """Arize log_inference should be invoked after a successful prediction."""
+    _create_model(app, tmp_path, name="arize-demo", version="5")
+
+    calls = []
+
+    def fake_log_inference(**kwargs):
+        calls.append(kwargs)
+        return True
+
+    monkeypatch.setattr(explainer_service, "create_explanation", _fake_explainer_shap)
+    monkeypatch.setattr(umap_service, "create_embedding", _fake_embedding)
+    monkeypatch.setattr(mlflow_service, "log_shap_once", _fake_mlflow)
+    monkeypatch.setattr(arize_service, "log_inference", fake_log_inference)
+
+    response = client.post(
+        "/predictions/model/arize-demo/version/5",
+        json={"features": {"feature_1": 10, "feature_2": 20}},
+    )
+
+    assert response.status_code == 201
+    assert len(calls) == 1
+    assert calls[0]["model_name"] == "arize-demo"
+    assert calls[0]["model_version"] == "5"
+    assert calls[0]["prediction_label"] == "yes"
+    assert calls[0]["features"] == {"feature_1": 10, "feature_2": 20}
+
+
+def test_create_prediction_arize_error_is_non_fatal(app, client, tmp_path, monkeypatch):
+    """An ArizeLogError must not cause the prediction endpoint to fail."""
+    _create_model(app, tmp_path, name="arize-fail", version="6")
+
+    def fake_log_inference(**kwargs):
+        raise ArizeLogError("Arize is down.")
+
+    monkeypatch.setattr(explainer_service, "create_explanation", _fake_explainer_shap)
+    monkeypatch.setattr(umap_service, "create_embedding", _fake_embedding)
+    monkeypatch.setattr(mlflow_service, "log_shap_once", _fake_mlflow)
+    monkeypatch.setattr(arize_service, "log_inference", fake_log_inference)
+
+    response = client.post(
+        "/predictions/model/arize-fail/version/6",
+        json={"features": {"feature_1": 10, "feature_2": 20}},
+    )
+
+    assert response.status_code == 201
+    assert "prediction_id" in response.get_json()
+
+
+def test_update_actual_calls_arize_log_actual(app, client, tmp_path, monkeypatch):
+    """After updating the actual, Arize log_actual should be called."""
+    _create_model(app, tmp_path, name="arize-actual", version="7")
+
+    monkeypatch.setattr(explainer_service, "create_explanation", _fake_explainer_shap)
+    monkeypatch.setattr(umap_service, "create_embedding", _fake_embedding)
+    monkeypatch.setattr(mlflow_service, "log_shap_once", _fake_mlflow)
+
+    actual_calls = []
+
+    def fake_log_inference(**kwargs):
+        return True
+
+    def fake_log_actual(**kwargs):
+        actual_calls.append(kwargs)
+        return True
+
+    monkeypatch.setattr(arize_service, "log_inference", fake_log_inference)
+    monkeypatch.setattr(arize_service, "log_actual", fake_log_actual)
+
+    create_resp = client.post(
+        "/predictions/model/arize-actual/version/7",
+        json={"features": {"feature_1": 10, "feature_2": 20}},
+    )
+    assert create_resp.status_code == 201
+    prediction_id = create_resp.get_json()["prediction_id"]
+
+    patch_resp = client.patch(
+        f"/predictions/{prediction_id}/actual",
+        json={"actual": "no"},
+    )
+
+    assert patch_resp.status_code == 200
+    assert len(actual_calls) == 1
+    assert actual_calls[0]["actual_label"] == "no"
+    assert actual_calls[0]["model_name"] == "arize-actual"
+
+
+def test_update_actual_arize_error_is_non_fatal(app, client, tmp_path, monkeypatch):
+    """An ArizeLogError from log_actual must not cause the update endpoint to fail."""
+    _create_model(app, tmp_path, name="arize-actual-fail", version="8")
+
+    monkeypatch.setattr(explainer_service, "create_explanation", _fake_explainer_shap)
+    monkeypatch.setattr(umap_service, "create_embedding", _fake_embedding)
+    monkeypatch.setattr(mlflow_service, "log_shap_once", _fake_mlflow)
+    monkeypatch.setattr(arize_service, "log_inference", lambda **_: True)
+
+    def fake_log_actual(**kwargs):
+        raise ArizeLogError("Arize is unreachable.")
+
+    monkeypatch.setattr(arize_service, "log_actual", fake_log_actual)
+
+    create_resp = client.post(
+        "/predictions/model/arize-actual-fail/version/8",
+        json={"features": {"feature_1": 10, "feature_2": 20}},
+    )
+    assert create_resp.status_code == 201
+    prediction_id = create_resp.get_json()["prediction_id"]
+
+    patch_resp = client.patch(
+        f"/predictions/{prediction_id}/actual",
+        json={"actual": "yes"},
+    )
+
+    assert patch_resp.status_code == 200
+    assert patch_resp.get_json()["message"] == "Prediction updated"
