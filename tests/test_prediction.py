@@ -415,3 +415,92 @@ def test_update_actual_arize_error_is_non_fatal(app, client, tmp_path, monkeypat
 
     assert patch_resp.status_code == 200
     assert patch_resp.get_json()["message"] == "Prediction updated"
+
+
+# ---------------------------------------------------------------------------
+# Additional prediction controller coverage
+# ---------------------------------------------------------------------------
+
+def test_create_prediction_non_json_body_returns_400(client):
+    """Non-JSON body triggers the _get_prediction_request non-dict path."""
+    response = client.post(
+        "/predictions/model/demo/version/1",
+        data="not json",
+        content_type="text/plain",
+    )
+    assert response.status_code == 400
+    assert "features" in response.get_json()["error"]
+
+
+def test_create_prediction_invalid_input_generic_returns_400(client):
+    """Validation error that is not missing and not umap hits generic branch."""
+    # features with an invalid type causes pydantic to fail with a type error,
+    # not a "missing" error, and without "umap" in loc → generic branch.
+    response = client.post(
+        "/predictions/model/demo/version/1",
+        json={"features": "not-a-dict"},
+    )
+    assert response.status_code == 400
+
+
+def test_create_prediction_legacy_endpoint(app, client, tmp_path, monkeypatch):
+    """The /model/<name>/version/<ver> legacy route should work identically."""
+    _create_model(app, tmp_path, name="legacy", version="1")
+
+    monkeypatch.setattr(explainer_service, "create_explanation", _fake_explainer_shap)
+    monkeypatch.setattr(umap_service, "create_embedding", _fake_embedding)
+    monkeypatch.setattr(mlflow_service, "log_shap_once", _fake_mlflow)
+    monkeypatch.setattr(arize_service, "log_inference", lambda **_: True)
+
+    response = client.post(
+        "/model/legacy/version/1",
+        json={"features": {"feature_1": 1, "feature_2": 2}},
+    )
+    assert response.status_code == 201
+
+
+def test_get_prediction_not_found_returns_404(client):
+    response = client.get("/predictions/nonexistent-id")
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Prediction not found"
+
+
+def test_update_actual_missing_body_returns_400(client):
+    response = client.patch("/predictions/any-id/actual", json={"wrong_key": "x"})
+    assert response.status_code == 400
+    assert "actual" in response.get_json()["error"]
+
+
+def test_update_actual_not_found_returns_404(client):
+    response = client.patch("/predictions/nonexistent/actual", json={"actual": "yes"})
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Prediction not found"
+
+
+def test_extract_shap_values_returns_empty_when_no_explanations():
+    from data5580_hw.controllers.prediction import _extract_shap_values
+    assert _extract_shap_values(None) == {}
+
+
+def test_extract_shap_values_returns_empty_when_name_not_found():
+    from data5580_hw.controllers.prediction import _extract_shap_values
+    explanations = Explanations(
+        explanations=[Explanation(name="other", values={"f": 0.1})]
+    )
+    assert _extract_shap_values(explanations) == {}
+
+
+def test_extract_embeddings_returns_empty_when_none():
+    from data5580_hw.controllers.prediction import _extract_embeddings
+    from data5580_hw.models.prediction import Prediction
+    p = Prediction(features={"f": 1})
+    assert _extract_embeddings(p) == {}
+
+
+def test_json_safe_calls_item_on_numpy_scalar():
+    from data5580_hw.controllers.prediction import _json_safe
+    import numpy as np
+    val = np.float32(1.5)
+    result = _json_safe(val)
+    assert result == pytest.approx(1.5)
+    assert not hasattr(result, "item")

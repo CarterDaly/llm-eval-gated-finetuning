@@ -1,3 +1,8 @@
+import sys
+from unittest.mock import patch
+
+import pytest
+
 from data5580_hw.services.errors import MlflowLogError
 from data5580_hw.services.mlflow_service import MlflowService
 
@@ -76,3 +81,39 @@ def test_log_shap_once_logs_artifact(monkeypatch):
     assert run_id == "run-1"
     assert logged_path == artifact_path
     assert payload["prediction_id"] == "pred-1"
+
+
+def test_log_shap_once_raises_on_log_dict_exception(monkeypatch):
+    service = MlflowService()
+
+    class _BoomClient:
+        def log_dict(self, *a, **kw):
+            raise RuntimeError("network error")
+
+    class _BoomTracking:
+        def MlflowClient(self):
+            return _BoomClient()
+
+    class _BoomMlflow:
+        tracking = _BoomTracking()
+        def set_tracking_uri(self, uri): pass
+
+    monkeypatch.setattr(service, "_import_mlflow", lambda: _BoomMlflow())
+
+    with pytest.raises(MlflowLogError, match="Failed to log SHAP"):
+        service.log_shap_once(
+            run_id="run-1",
+            model_name="model",
+            model_version="1",
+            shap_values={"a": 0.1},
+            prediction_id="pred-1",
+        )
+
+
+def test_import_mlflow_not_installed():
+    service = MlflowService()
+    blocked = {k: None for k in list(sys.modules.keys()) if k == "mlflow" or k.startswith("mlflow.")}
+    blocked.setdefault("mlflow", None)
+    with patch.dict(sys.modules, blocked):
+        with pytest.raises(MlflowLogError, match="not installed"):
+            service._import_mlflow()
