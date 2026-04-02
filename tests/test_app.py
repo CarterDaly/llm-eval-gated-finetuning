@@ -170,3 +170,84 @@ def test_list_users(client):
     assert len(body["users"]) == 2
     emails = {user["email"] for user in body["users"]}
     assert emails == {"first@example.com", "second@example.com"}
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage
+# ---------------------------------------------------------------------------
+
+def test_create_user_non_json_body_returns_400(client):
+    response = client.post("/users", data="not json", content_type="text/plain")
+    assert response.status_code == 400
+    assert "Missing required fields" in response.get_json()["error"]
+
+
+def test_create_user_invalid_details_generic_branch(client):
+    """Validation error that is not 'missing' and not 'email' hits generic branch."""
+    from data5580_hw.controllers.user import _validation_error_response
+    from pydantic import BaseModel, ValidationError
+    from flask import Flask
+
+    class _M(BaseModel):
+        x: int
+
+    app = Flask(__name__)
+    with app.app_context():
+        try:
+            _M.model_validate({"x": "not-an-int"})
+        except ValidationError as exc:
+            resp, code = _validation_error_response(exc)
+            assert code == 400
+
+
+def test_update_user_patch_non_json_body_returns_400(client):
+    created = _create_user(client, name="X", email="xpatch@example.com")
+    user_id = created["user"]["id"]
+    response = client.patch(
+        f"/users/{user_id}", data="not json", content_type="text/plain"
+    )
+    assert response.status_code == 400
+
+
+def test_update_user_patch_invalid_email_returns_400(client):
+    created = _create_user(client, name="X", email="x2patch@example.com")
+    user_id = created["user"]["id"]
+    response = client.patch(f"/users/{user_id}", json={"email": "bad-email"})
+    assert response.status_code == 400
+    assert "Invalid email" in response.get_json()["error"]
+
+
+def test_update_user_patch_email_conflict_returns_400(client):
+    _create_user(client, name="A", email="a_conflict@example.com")
+    second = _create_user(client, name="B", email="b_conflict@example.com")
+    response = client.patch(
+        f"/users/{second['user']['id']}", json={"email": "a_conflict@example.com"}
+    )
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Email is already in use"
+
+
+def test_replace_user_put_non_json_body_returns_400(client):
+    created = _create_user(client, name="X", email="x3put@example.com")
+    user_id = created["user"]["id"]
+    response = client.put(
+        f"/users/{user_id}", data="not json", content_type="text/plain"
+    )
+    assert response.status_code == 400
+
+
+def test_replace_user_put_email_conflict_returns_400(client):
+    _create_user(client, name="A", email="a2put@example.com")
+    second = _create_user(client, name="B", email="b2put@example.com")
+    response = client.put(
+        f"/users/{second['user']['id']}",
+        json={"name": "B", "email": "a2put@example.com"},
+    )
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Email is already in use"
+
+
+def test_metrics_endpoint_returns_prometheus_text(client):
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert response.content_type.startswith("text/plain")
