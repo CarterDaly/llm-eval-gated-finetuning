@@ -24,3 +24,7 @@ class MlflowLogError(Exception):
 
 class ArizeLogError(Exception):
     """Raised when Arize model monitoring logging fails."""
+
+
+class OpenAIError(Exception):
+    """Raised when an OpenAI API call fails."""

@@ -7,7 +7,8 @@ from data5580_hw.models.prediction import Explanation, Explanations
 from data5580_hw.services.database.database_client import db
 from data5580_hw.services.database.prediction import ExplanationSQL, ModelSQL, PredictionSQL
 from data5580_hw.services.arize_service import arize_service
-from data5580_hw.services.errors import ArizeLogError, EmbeddingError, ExplanationError, MlflowLogError
+from data5580_hw.services.errors import ArizeLogError, EmbeddingError, ExplanationError, InferenceError, MlflowLogError
+from data5580_hw.services.model_service import model_service
 from data5580_hw.services.explainer_service import explainer_service
 from data5580_hw.services.mlflow_service import mlflow_service
 from data5580_hw.services.umap_service import umap_service
@@ -504,3 +505,129 @@ def test_json_safe_calls_item_on_numpy_scalar():
     result = _json_safe(val)
     assert result == pytest.approx(1.5)
     assert not hasattr(result, "item")
+
+
+# ---------------------------------------------------------------------------
+# Additional controller branch coverage
+# ---------------------------------------------------------------------------
+
+class _MinimalModel:
+    """A model with no feature_names_in_ so load_model leaves feature_names as None."""
+    def predict(self, _inputs):
+        return ["yes"]
+
+
+def _create_model_no_features(app, tmp_path, name="no-feat", version="1"):
+    """Create a model record with no feature_names to test the no-feature-names branch."""
+    model_path = tmp_path / "model_nf.pkl"
+    with open(model_path, "wb") as f:
+        pickle.dump(_MinimalModel(), f)
+
+    with app.app_context():
+        model_sql = ModelSQL(
+            id=f"model-nf-{name}-{version}",
+            model_type="generic",
+            model_name=name,
+            model_version=version,
+            artifact_path=str(model_path),
+            feature_names=None,
+            mlflow_run_id="run-nf",
+        )
+        db.session.add(model_sql)
+        db.session.commit()
+
+
+def test_create_prediction_no_feature_names_skips_validation(app, client, tmp_path, monkeypatch):
+    """When a model has no feature_names, _validate_feature_presence returns None (line 110)."""
+    _create_model_no_features(app, tmp_path, name="nf-model", version="1")
+
+    monkeypatch.setattr(explainer_service, "create_explanation", _fake_explainer_shap)
+    monkeypatch.setattr(umap_service, "create_embedding", _fake_embedding)
+    monkeypatch.setattr(mlflow_service, "log_shap_once", _fake_mlflow)
+    monkeypatch.setattr(arize_service, "log_inference", lambda **_: True)
+
+    response = client.post(
+        "/predictions/model/nf-model/version/1",
+        json={"features": {"anything": 99}},
+    )
+
+    assert response.status_code == 201
+
+
+def test_create_prediction_inference_error_returns_500(app, client, tmp_path, monkeypatch):
+    """InferenceError from model_service.create_inference should return 500 (lines 120-122, 245)."""
+    _create_model(app, tmp_path, name="infer-fail", version="1")
+
+    def fake_inference(model, prediction):
+        from data5580_hw.services.errors import InferenceError
+        raise InferenceError("Inference exploded.")
+
+    monkeypatch.setattr(model_service, "create_inference", fake_inference)
+
+    response = client.post(
+        "/predictions/model/infer-fail/version/1",
+        json={"features": {"feature_1": 10, "feature_2": 20}},
+    )
+
+    assert response.status_code == 500
+    assert "Inference exploded." in response.get_json()["error"]
+
+
+def test_create_prediction_db_commit_failure_returns_500(app, client, tmp_path, monkeypatch):
+    """DB commit failure in _persist_prediction should return 500 (lines 207-210, 263)."""
+    _create_model(app, tmp_path, name="db-fail", version="1")
+
+    monkeypatch.setattr(explainer_service, "create_explanation", _fake_explainer_shap)
+    monkeypatch.setattr(umap_service, "create_embedding", _fake_embedding)
+    monkeypatch.setattr(mlflow_service, "log_shap_once", _fake_mlflow)
+    monkeypatch.setattr(arize_service, "log_inference", lambda **_: True)
+
+    original_commit = db.session.commit
+
+    call_count = {"n": 0}
+
+    def flaky_commit():
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise Exception("DB is down")
+        return original_commit()
+
+    monkeypatch.setattr(db.session, "commit", flaky_commit)
+
+    response = client.post(
+        "/predictions/model/db-fail/version/1",
+        json={"features": {"feature_1": 10, "feature_2": 20}},
+    )
+
+    assert response.status_code == 500
+    assert "Failed to store prediction" in response.get_json()["error"]
+
+
+def test_update_actual_db_commit_failure_returns_500(app, client, tmp_path, monkeypatch):
+    """DB commit failure in update_actual should return 500 (lines 362-364)."""
+    _create_model(app, tmp_path, name="upd-db-fail", version="1")
+
+    monkeypatch.setattr(explainer_service, "create_explanation", _fake_explainer_shap)
+    monkeypatch.setattr(umap_service, "create_embedding", _fake_embedding)
+    monkeypatch.setattr(mlflow_service, "log_shap_once", _fake_mlflow)
+    monkeypatch.setattr(arize_service, "log_inference", lambda **_: True)
+
+    create_resp = client.post(
+        "/predictions/model/upd-db-fail/version/1",
+        json={"features": {"feature_1": 10, "feature_2": 20}},
+    )
+    assert create_resp.status_code == 201
+    prediction_id = create_resp.get_json()["prediction_id"]
+
+    def broken_commit():
+        raise Exception("DB is down during update")
+
+    monkeypatch.setattr(db.session, "commit", broken_commit)
+
+    patch_resp = client.patch(
+        f"/predictions/{prediction_id}/actual",
+        json={"actual": "no"},
+    )
+
+    assert patch_resp.status_code == 500
+    assert "Failed to update prediction" in patch_resp.get_json()["error"]

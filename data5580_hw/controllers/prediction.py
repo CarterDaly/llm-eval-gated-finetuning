@@ -5,7 +5,7 @@ from flask import jsonify, request
 
 from pydantic import ValidationError
 
-from data5580_hw.models.prediction import Model, Prediction, PredictionRequest, Explanations, UmapConfig
+from data5580_hw.models.prediction import ActualUpdateRequest, Model, Prediction, PredictionRequest, Explanations, UmapConfig
 from data5580_hw.services.database.database_client import db
 from data5580_hw.services.database.prediction import ExplanationSQL, ModelSQL, PredictionSQL
 from data5580_hw.services.arize_service import arize_service
@@ -16,7 +16,9 @@ from data5580_hw.services.errors import (
     InferenceError,
     MlflowLogError,
     ModelLoadError,
+    OpenAIError,
 )
+from data5580_hw.services.openai_service import openai_service
 from data5580_hw.services.explainer_service import explainer_service
 from data5580_hw.services.mlflow_service import mlflow_service
 from data5580_hw.services.model_service import model_service
@@ -31,14 +33,30 @@ def _missing_fields_message(fields: list[str]) -> str:
     return "Missing required fields: {}".format(", ".join(sorted(fields)))
 
 
-def _validation_error_response(error: ValidationError):
-    errors = error.errors()
-    missing = [err["loc"][0] for err in errors if err.get("type") == "missing"]
-    if missing:
-        return jsonify({"error": _missing_fields_message(missing)}), 400
-    if any("umap" in err.get("loc", []) for err in errors):
-        return jsonify({"error": "Invalid UMAP configuration"}), 400
-    return jsonify({"error": "Invalid prediction input"}), 400
+def _parse_body(model_class):
+    """Parse and validate a JSON request body against a Pydantic model.
+
+    Returns (model_instance, None) on success or (None, error_response) on failure.
+    Keeps the existing error contract so callers and tests are unaffected.
+    """
+    data = request.get_json(silent=True)
+    required = [n for n, f in model_class.model_fields.items() if f.is_required()]
+    if not isinstance(data, dict):
+        return None, (jsonify({"error": _missing_fields_message(required)}), 400)
+    try:
+        return model_class.model_validate(data), None
+    except ValidationError as exc:
+        errors = exc.errors()
+        missing = [str(err["loc"][0]) for err in errors if err.get("type") == "missing"]
+        if missing:
+            return None, (jsonify({"error": _missing_fields_message(missing)}), 400)
+        if any("umap" in err.get("loc", ()) for err in errors):
+            return None, (jsonify({"error": "Invalid UMAP configuration"}), 400)
+        return None, (jsonify({"error": "Invalid request body"}), 400)
+
+
+def _get_prediction_request():
+    return _parse_body(PredictionRequest)
 
 
 def _extract_shap_values(explanations: Explanations | None) -> dict:
@@ -60,16 +78,6 @@ def _json_safe(value):
     if hasattr(value, "item"):
         return value.item()
     return value
-
-
-def _get_prediction_request():
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        return None, (jsonify({"error": _missing_fields_message(["features"])}), 400)
-    try:
-        return PredictionRequest.model_validate(data), None
-    except ValidationError as exc:
-        return None, _validation_error_response(exc)
 
 
 def _get_model_record(model_name: str, model_version: str):
@@ -299,10 +307,51 @@ class PredictionController:
         )
 
     @staticmethod
+    def get_prediction_explainer(prediction_id: str) -> tuple[str, int]:
+        prediction_sql = (
+            db.session.query(PredictionSQL)
+            .filter(PredictionSQL.id == prediction_id)
+            .first()
+        )
+
+        if prediction_sql is None:
+            return jsonify({"error": "Prediction not found"}), 404
+
+        prediction = prediction_sql.to_prediction()
+
+        all_predictions_sql = (
+            db.session.query(PredictionSQL)
+            .filter(PredictionSQL.model_id == prediction_sql.model_id)
+            .all()
+        )
+        all_predictions = [p.to_prediction() for p in all_predictions_sql]
+
+        nearest = openai_service.find_nearest_predictions(prediction, all_predictions)
+
+        try:
+            summary = openai_service.generate_summary(prediction, nearest)
+        except OpenAIError as exc:
+            logger.exception("openai_summary_failed")
+            return jsonify({"error": str(exc)}), 500
+
+        return (
+            jsonify(
+                {
+                    "prediction_id": prediction.id,
+                    "label": _json_safe(prediction.label),
+                    "shap_values": _extract_shap_values(prediction.explanations),
+                    "embeddings": _extract_embeddings(prediction),
+                    "summary": summary,
+                }
+            ),
+            200,
+        )
+
+    @staticmethod
     def update_actual(prediction_id: str) -> tuple[str, int]:
-        data = request.get_json(silent=True)
-        if not isinstance(data, dict) or "actual" not in data:
-            return jsonify({"error": _missing_fields_message(["actual"])}), 400
+        body, error = _parse_body(ActualUpdateRequest)
+        if error:
+            return error
 
         prediction_sql = (
             db.session.query(PredictionSQL)
@@ -313,14 +362,14 @@ class PredictionController:
         if prediction_sql is None:
             return jsonify({"error": "Prediction not found"}), 404
 
-        prediction_sql.actual = data["actual"]
+        prediction_sql.actual = body.actual
         try:
             db.session.commit()
         except Exception:
             db.session.rollback()
             return jsonify({"error": "Failed to update prediction"}), 500
 
-        _log_arize_actual(prediction_sql, data["actual"])
+        _log_arize_actual(prediction_sql, body.actual)
 
         return jsonify({"message": "Prediction updated", "prediction_id": prediction_id}), 200
 

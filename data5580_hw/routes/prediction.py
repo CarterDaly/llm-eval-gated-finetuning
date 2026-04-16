@@ -22,6 +22,11 @@ def get_prediction_by_id(prediction_id: str):
     return prediction_controller.get_prediction_by_id(prediction_id)
 
 
+@prediction.route("/predictions/<prediction_id>/explainer", methods=["GET"])
+def get_prediction_explainer(prediction_id: str):
+    return prediction_controller.get_prediction_explainer(prediction_id)
+
+
 @prediction.route("/predictions/<prediction_id>/actual", methods=["PATCH"])
 def update_actual(prediction_id: str):
     return prediction_controller.update_actual(prediction_id)
