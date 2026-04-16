@@ -10,6 +10,7 @@ import  logging
 from flask import Flask, jsonify
 
 # Local
+from data5580_hw.celery_app import init_celery
 from data5580_hw.routes import init_blueprints
 from data5580_hw.services.database.database_client import init_db
 from data5580_hw.monitoring import init_metrics
@@ -26,6 +27,7 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     init_db(app)
+    init_celery(app)
 
     @app.route("/", methods=["GET"])
     def home():
