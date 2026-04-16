@@ -45,6 +45,10 @@ class PredictionRequest(BaseModel):
     umap: Optional[UmapConfig] = None
 
 
+class ActualUpdateRequest(BaseModel):
+    actual: Union[int, float, str]
+
+
 class Explanation(LocalBaseModel):
     name: str
     values: Dict[str, float]

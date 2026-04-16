@@ -16,3 +16,4 @@ shap
 umap-learn
 mlflow
 arize<8.0.0
+openai

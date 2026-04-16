@@ -291,6 +291,24 @@ def test_log_inference_without_optional_fields(service, monkeypatch, arize_env):
     assert "prediction_timestamp" not in call_kwargs
 
 
+def test_log_inference_default_environment_is_development(service, monkeypatch, arize_env):
+    """When ARIZE_ENVIRONMENT is unset, the default should be development (TRAINING)."""
+    Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    # arize_env fixture already deletes ARIZE_ENVIRONMENT
+
+    service.log_inference(
+        prediction_id="default-env",
+        model_name="demo",
+        model_version="1",
+        prediction_label="yes",
+        features={"f": 1},
+    )
+
+    call_kwargs = mock_client_instance.log.call_args.kwargs
+    assert call_kwargs["environment"] == Environments.TRAINING
+
+
 def test_log_inference_uses_environment_env_var(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
     monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))

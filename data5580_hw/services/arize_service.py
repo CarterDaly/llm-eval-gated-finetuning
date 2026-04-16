@@ -15,7 +15,7 @@ class ArizeService:
     Controlled via environment variables:
       ARIZE_API_KEY      - Arize API key (required when enabled)
       ARIZE_SPACE_KEY    - Arize space key (required when enabled)
-      ARIZE_ENVIRONMENT  - production | staging | development (default: production)
+      ARIZE_ENVIRONMENT  - production | staging | development (default: development)
       ARIZE_ENABLED      - true | false  (default: true)
     """
 
@@ -43,7 +43,7 @@ class ArizeService:
         api_key, space_key = self._get_credentials()
         Client, ModelTypes, Environments = self._import_arize()
 
-        env_name = environment or os.getenv("ARIZE_ENVIRONMENT", "production")
+        env_name = environment or os.getenv("ARIZE_ENVIRONMENT", "development")
         arize_env = self._resolve_environment(Environments, env_name)
         client = Client(space_key=space_key, api_key=api_key)
 
@@ -95,7 +95,7 @@ class ArizeService:
         api_key, space_key = self._get_credentials()
         Client, ModelTypes, Environments = self._import_arize()
 
-        env_name = environment or os.getenv("ARIZE_ENVIRONMENT", "production")
+        env_name = environment or os.getenv("ARIZE_ENVIRONMENT", "development")
         arize_env = self._resolve_environment(Environments, env_name)
         client = Client(space_key=space_key, api_key=api_key)
 
