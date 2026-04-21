@@ -3,6 +3,21 @@ import pytest
 from sqlalchemy.orm import sessionmaker, Session
 
 from data5580_hw.services.database.database_client import db
+from data5580_hw.services.mlflow_service import mlflow_service
+
+
+@pytest.fixture(autouse=True)
+def _patch_log_embedding_once(monkeypatch):
+    """Prevent tests from calling real MLflow for embedding logging.
+
+    Any test that also patches log_shap_once separately still works fine —
+    this fixture just ensures log_embedding_once is always a no-op.
+    """
+    monkeypatch.setattr(
+        mlflow_service,
+        "log_embedding_once",
+        lambda **_kw: "embeddings/test/1/first_inference.json",
+    )
 
 
 @pytest.fixture

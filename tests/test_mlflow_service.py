@@ -117,3 +117,87 @@ def test_import_mlflow_not_installed():
     with patch.dict(sys.modules, blocked):
         with pytest.raises(MlflowLogError, match="not installed"):
             service._import_mlflow()
+
+
+# ---------------------------------------------------------------------------
+# log_embedding_once
+# ---------------------------------------------------------------------------
+
+def test_log_embedding_once_skips_when_existing_path(monkeypatch):
+    """Should return None immediately if an artifact path already exists."""
+    service = MlflowService()
+    result = service.log_embedding_once(
+        run_id="run-1",
+        model_name="m",
+        model_version="1",
+        embedding={"x": 0.1, "y": 0.2},
+        prediction_id="pred-1",
+        existing_artifact_path="embeddings/m/1/first_inference.json",
+    )
+    assert result is None
+
+
+def test_log_embedding_once_raises_without_run_id():
+    service = MlflowService()
+    with pytest.raises(MlflowLogError, match="run id is missing"):
+        service.log_embedding_once(
+            run_id="",
+            model_name="m",
+            model_version="1",
+            embedding={"x": 0.1},
+            prediction_id="pred-1",
+        )
+
+
+def test_log_embedding_once_returns_artifact_path(monkeypatch):
+    service = MlflowService()
+
+    class _FakeClient:
+        def log_dict(self, run_id, payload, path):
+            pass
+
+    class _FakeTracking:
+        def MlflowClient(self):
+            return _FakeClient()
+
+    class _FakeMlflow:
+        tracking = _FakeTracking()
+        def set_tracking_uri(self, uri): pass
+
+    monkeypatch.setattr(service, "_import_mlflow", lambda: _FakeMlflow())
+
+    result = service.log_embedding_once(
+        run_id="run-1",
+        model_name="my-model",
+        model_version="2",
+        embedding={"x": 0.5, "y": -0.3},
+        prediction_id="pred-abc",
+    )
+    assert result == "embeddings/my-model/2/first_inference.json"
+
+
+def test_log_embedding_once_wraps_mlflow_exception(monkeypatch):
+    service = MlflowService()
+
+    class _BoomClient:
+        def log_dict(self, *a, **kw):
+            raise RuntimeError("timeout")
+
+    class _BoomTracking:
+        def MlflowClient(self):
+            return _BoomClient()
+
+    class _BoomMlflow:
+        tracking = _BoomTracking()
+        def set_tracking_uri(self, uri): pass
+
+    monkeypatch.setattr(service, "_import_mlflow", lambda: _BoomMlflow())
+
+    with pytest.raises(MlflowLogError, match="Failed to log embedding"):
+        service.log_embedding_once(
+            run_id="run-1",
+            model_name="m",
+            model_version="1",
+            embedding={"x": 0.1},
+            prediction_id="pred-1",
+        )

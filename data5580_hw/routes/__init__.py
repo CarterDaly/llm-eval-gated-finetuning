@@ -13,3 +13,9 @@ def init_blueprints(app):
 
     from data5580_hw.routes.task import task
     app.register_blueprint(task)
+
+    from data5580_hw.routes.candidate import candidate
+    app.register_blueprint(candidate)
+
+    from data5580_hw.routes.model import model
+    app.register_blueprint(model)

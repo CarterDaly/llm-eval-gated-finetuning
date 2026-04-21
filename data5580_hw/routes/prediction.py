@@ -30,3 +30,8 @@ def get_prediction_explainer(prediction_id: str):
 @prediction.route("/predictions/<prediction_id>/actual", methods=["PATCH"])
 def update_actual(prediction_id: str):
     return prediction_controller.update_actual(prediction_id)
+
+
+@prediction.route("/predictions/actuals", methods=["PATCH"])
+def update_actuals_batch():
+    return prediction_controller.update_actuals_batch()

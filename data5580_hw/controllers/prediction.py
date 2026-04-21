@@ -5,7 +5,7 @@ from flask import jsonify, request
 
 from pydantic import ValidationError
 
-from data5580_hw.models.prediction import ActualUpdateRequest, Model, Prediction, PredictionRequest, Explanations, UmapConfig
+from data5580_hw.models.prediction import ActualUpdateRequest, BatchActualUpdateRequest, Model, Prediction, PredictionRequest, Explanations, UmapConfig
 from data5580_hw.services.database.database_client import db
 from data5580_hw.services.database.prediction import ExplanationSQL, ModelSQL, PredictionSQL
 from data5580_hw.services.arize_service import arize_service
@@ -14,11 +14,11 @@ from data5580_hw.services.errors import (
     EmbeddingError,
     ExplanationError,
     InferenceError,
+    LLMError,
     MlflowLogError,
     ModelLoadError,
-    OpenAIError,
 )
-from data5580_hw.services.openai_service import openai_service
+from data5580_hw.services.llm_service import llm_service
 from data5580_hw.services.explainer_service import explainer_service
 from data5580_hw.services.mlflow_service import mlflow_service
 from data5580_hw.services.model_service import model_service
@@ -171,6 +171,30 @@ def _run_embedding(model: Model, prediction: Prediction, prediction_request: Pre
     return embedding, None
 
 
+def _log_embedding_values(model_sql: ModelSQL, embedding: dict, prediction_id: str):
+    coords = {k: v for k, v in embedding.items() if k != "kind"}
+    try:
+        artifact_path = mlflow_service.log_embedding_once(
+            run_id=model_sql.mlflow_run_id or "",
+            model_name=model_sql.model_name,
+            model_version=model_sql.model_version,
+            embedding=coords,
+            prediction_id=prediction_id,
+            existing_artifact_path=model_sql.embedding_artifact_path,
+            tracking_uri=model_sql.mlflow_tracking_uri,
+        )
+    except MlflowLogError as exc:
+        logger.exception("mlflow_embedding_log_failed")
+        return None, (jsonify({"error": str(exc)}), 500)
+
+    if artifact_path:
+        model_sql.embedding_artifact_path = artifact_path
+        model_sql.embedding_logged_at = datetime.now(timezone.utc)
+        db.session.add(model_sql)
+
+    return artifact_path, None
+
+
 def _log_arize_inference(prediction: Prediction, model: Model) -> None:
     """Submit inference to Arize; failures are non-fatal and logged locally."""
     try:
@@ -262,6 +286,10 @@ class PredictionController:
         if error:
             return error
 
+        _, error = _log_embedding_values(model_sql, embedding, prediction.id)
+        if error:
+            return error
+
         prediction.embeddings = {k: v for k, v in embedding.items() if k != "kind"}
 
         _, error = _persist_prediction(prediction, model)
@@ -326,12 +354,12 @@ class PredictionController:
         )
         all_predictions = [p.to_prediction() for p in all_predictions_sql]
 
-        nearest = openai_service.find_nearest_predictions(prediction, all_predictions)
+        nearest = llm_service.find_nearest_predictions(prediction, all_predictions)
 
         try:
-            summary = openai_service.generate_summary(prediction, nearest)
-        except OpenAIError as exc:
-            logger.exception("openai_summary_failed")
+            summary = llm_service.generate_summary(prediction, nearest)
+        except LLMError as exc:
+            logger.exception("llm_summary_failed")
             return jsonify({"error": str(exc)}), 500
 
         return (
@@ -372,5 +400,41 @@ class PredictionController:
         _log_arize_actual(prediction_sql, body.actual)
 
         return jsonify({"message": "Prediction updated", "prediction_id": prediction_id}), 200
+
+    @staticmethod
+    def update_actuals_batch() -> tuple[str, int]:
+        body, error = _parse_body(BatchActualUpdateRequest)
+        if error:
+            return error
+
+        updated = []
+        not_found = []
+
+        for item in body.updates:
+            prediction_sql = (
+                db.session.query(PredictionSQL)
+                .filter(PredictionSQL.id == item.prediction_id)
+                .first()
+            )
+            if prediction_sql is None:
+                not_found.append(item.prediction_id)
+                continue
+            prediction_sql.actual = item.actual
+            updated.append(item.prediction_id)
+
+        if updated:
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                return jsonify({"error": "Failed to update predictions"}), 500
+
+            for pid in updated:
+                prediction_sql = db.session.query(PredictionSQL).filter(PredictionSQL.id == pid).first()
+                if prediction_sql:
+                    _log_arize_actual(prediction_sql, prediction_sql.actual)
+
+        return jsonify({"updated": updated, "not_found": not_found}), 200
+
 
 prediction_controller = PredictionController()

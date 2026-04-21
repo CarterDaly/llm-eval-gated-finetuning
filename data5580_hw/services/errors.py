@@ -26,5 +26,5 @@ class ArizeLogError(Exception):
     """Raised when Arize model monitoring logging fails."""
 
 
-class OpenAIError(Exception):
-    """Raised when an OpenAI API call fails."""
+class LLMError(Exception):
+    """Raised when a local LLM (Ollama) API call fails."""

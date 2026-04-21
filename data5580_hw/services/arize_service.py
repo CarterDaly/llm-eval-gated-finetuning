@@ -29,6 +29,7 @@ class ArizeService:
         features: Dict[str, Any],
         actual_label: Optional[Union[int, float, str]] = None,
         shap_values: Optional[Dict[str, float]] = None,
+        embedding: Optional[Dict[str, float]] = None,
         timestamp: Optional[datetime] = None,
         environment: Optional[str] = None,
     ) -> bool:
@@ -60,6 +61,8 @@ class ArizeService:
             kwargs["actual_label"] = actual_label
         if shap_values:
             kwargs["shap_values"] = shap_values
+        if embedding:
+            kwargs["embedding_features"] = {"umap": {"vector": list(embedding.values())}}
         if timestamp is not None:
             kwargs["prediction_timestamp"] = int(timestamp.timestamp())
 

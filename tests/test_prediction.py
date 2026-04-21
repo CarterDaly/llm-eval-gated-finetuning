@@ -126,6 +126,7 @@ def test_create_prediction_returns_shap_values_and_persists(app, client, tmp_pat
         assert prediction.model.id == "model-1"
         model_sql = db.session.query(ModelSQL).first()
         assert model_sql.shap_artifact_path == "shap/demo/1/first_inference.json"
+        assert model_sql.embedding_artifact_path == "embeddings/test/1/first_inference.json"
 
     response = client.get(f"/predictions/{prediction_id}")
     assert response.status_code == 200

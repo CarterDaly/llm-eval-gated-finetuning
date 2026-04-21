@@ -7,7 +7,7 @@ os.environ['PROMETHEUS_MULTIPROC_DIR'] = tempfile.mkdtemp()
 import  logging
 
 # Installed
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 # Local
 from data5580_hw.celery_app import init_celery
@@ -19,15 +19,39 @@ logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
+# Paths that are always public (health probe + Prometheus scrape)
+_PUBLIC_PATHS = {"/", "/metrics"}
+
+
+def _init_auth(app: Flask) -> None:
+    """Register API key middleware when API_KEY env var is set.
+
+    If API_KEY is not configured the middleware is skipped entirely so
+    local development works without any extra setup.
+    """
+    api_key = os.environ.get("API_KEY", "").strip()
+    if not api_key:
+        return
+
+    @app.before_request
+    def _check_api_key():
+        if request.path in _PUBLIC_PATHS:
+            return None
+        provided = request.headers.get("X-API-Key", "")
+        if provided != api_key:
+            return jsonify({"error": "Unauthorized"}), 401
+
 
 def create_app():
     app = Flask(__name__)
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///data.db"
+    database_url = os.environ.get("DATABASE_URL", "sqlite:///data.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     init_db(app)
     init_celery(app)
+    _init_auth(app)
 
     @app.route("/", methods=["GET"])
     def home():

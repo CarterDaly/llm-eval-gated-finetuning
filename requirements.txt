@@ -7,6 +7,9 @@ flower
 requests
 Flask-Pydantic
 flask-sqlalchemy
+flask-migrate
+psycopg2-binary
+gunicorn
 faker
 pydantic[email]
 prometheus-client
@@ -16,4 +19,3 @@ shap
 umap-learn
 mlflow
 arize<8.0.0
-openai

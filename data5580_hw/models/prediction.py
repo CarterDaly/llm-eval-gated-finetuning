@@ -49,6 +49,15 @@ class ActualUpdateRequest(BaseModel):
     actual: Union[int, float, str]
 
 
+class BatchActualUpdate(BaseModel):
+    prediction_id: str
+    actual: Union[int, float, str]
+
+
+class BatchActualUpdateRequest(BaseModel):
+    updates: List[BatchActualUpdate]
+
+
 class Explanation(LocalBaseModel):
     name: str
     values: Dict[str, float]
@@ -90,6 +99,9 @@ class Prediction(LocalBaseModel):
     actual: Optional[Union[int, float, str]] = None
     threshold: Optional[float] = None
     embeddings: Optional[Dict[str, float]] = None
+
+    candidate_id: Optional[str] = None
+    role_context: Optional[str] = None
 
     model: Optional[Model] = None
 

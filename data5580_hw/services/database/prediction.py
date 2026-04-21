@@ -43,6 +43,8 @@ class ModelSQL(db.Model):
     mlflow_tracking_uri: Mapped[str] = mapped_column(db.String(4000), nullable=True)
     shap_artifact_path: Mapped[str] = mapped_column(db.String(4000), nullable=True)
     shap_logged_at: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
+    embedding_artifact_path: Mapped[str] = mapped_column(db.String(4000), nullable=True)
+    embedding_logged_at: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
 
     created: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
     updated: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
@@ -66,6 +68,9 @@ class PredictionSQL(db.Model):
     threshold: Mapped[float] = mapped_column(db.Float, nullable=True)
     embeddings: Mapped[dict] = mapped_column(db.JSON, nullable=True)
 
+    candidate_id: Mapped[str] = mapped_column(db.String(255), nullable=True)
+    role_context: Mapped[str] = mapped_column(db.Text, nullable=True)
+
     created: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
     updated: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
 
@@ -88,6 +93,8 @@ class PredictionSQL(db.Model):
             actual=actual,
             threshold=prediction.threshold,
             embeddings=prediction.embeddings,
+            candidate_id=prediction.candidate_id,
+            role_context=prediction.role_context,
             created=prediction.created,
             updated=prediction.updated,
             model_id=model.id,
@@ -102,6 +109,8 @@ class PredictionSQL(db.Model):
             actual=self.actual,
             threshold=self.threshold,
             embeddings=self.embeddings,
+            candidate_id=self.candidate_id,
+            role_context=self.role_context,
             created=self.created,
             updated=self.updated,
             model=Model(
