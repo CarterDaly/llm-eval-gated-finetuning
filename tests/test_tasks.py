@@ -3,13 +3,13 @@ import pickle
 
 import pytest
 
-from data5580_hw.app import create_app
-from data5580_hw.celery_app import celery, init_celery
-from data5580_hw.models.prediction import Explanation, Explanations
-from data5580_hw.models.task import TaskStatus
-from data5580_hw.services.database.database_client import db
-from data5580_hw.services.database.prediction import ModelSQL, PredictionSQL
-from data5580_hw.services.errors import (
+from gated_finetune.app import create_app
+from gated_finetune.celery_app import celery, init_celery
+from gated_finetune.models.prediction import Explanation, Explanations
+from gated_finetune.models.task import TaskStatus
+from gated_finetune.services.database.database_client import db
+from gated_finetune.services.database.prediction import ModelSQL, PredictionSQL
+from gated_finetune.services.errors import (
     ArizeLogError,
     EmbeddingError,
     ExplanationError,
@@ -180,9 +180,9 @@ def test_submit_short_task_invalid_body_returns_400(client):
 def test_submit_short_task_success(app, client, tmp_path, monkeypatch):
     _create_model(app, tmp_path, name="short-ok", version="1")
 
-    from data5580_hw.services import explainer_service as es_mod
-    from data5580_hw.services import umap_service as us_mod
-    from data5580_hw.services import mlflow_service as mf_mod
+    from gated_finetune.services import explainer_service as es_mod
+    from gated_finetune.services import umap_service as us_mod
+    from gated_finetune.services import mlflow_service as mf_mod
 
     monkeypatch.setattr(es_mod.explainer_service, "create_explanation", lambda *a: Explanations())
     monkeypatch.setattr(us_mod.umap_service, "create_embedding", lambda *a: {"kind": "inputs", "x": 0.1, "y": 0.2})
@@ -219,10 +219,10 @@ def test_submit_short_task_model_not_found(client):
 def test_submit_long_task_success(app, client, tmp_path, monkeypatch):
     _create_model(app, tmp_path, name="long-ok", version="1")
 
-    from data5580_hw.services import explainer_service as es_mod
-    from data5580_hw.services import umap_service as us_mod
-    from data5580_hw.services import mlflow_service as mf_mod
-    from data5580_hw.services import arize_service as ar_mod
+    from gated_finetune.services import explainer_service as es_mod
+    from gated_finetune.services import umap_service as us_mod
+    from gated_finetune.services import mlflow_service as mf_mod
+    from gated_finetune.services import arize_service as ar_mod
 
     monkeypatch.setattr(
         es_mod.explainer_service,
@@ -252,10 +252,10 @@ def test_submit_long_task_success(app, client, tmp_path, monkeypatch):
 def test_submit_long_task_with_wait(app, client, tmp_path, monkeypatch):
     _create_model(app, tmp_path, name="long-wait", version="1")
 
-    from data5580_hw.services import explainer_service as es_mod
-    from data5580_hw.services import umap_service as us_mod
-    from data5580_hw.services import mlflow_service as mf_mod
-    from data5580_hw.services import arize_service as ar_mod
+    from gated_finetune.services import explainer_service as es_mod
+    from gated_finetune.services import umap_service as us_mod
+    from gated_finetune.services import mlflow_service as mf_mod
+    from gated_finetune.services import arize_service as ar_mod
 
     monkeypatch.setattr(
         es_mod.explainer_service,
@@ -301,7 +301,7 @@ def test_submit_short_task_with_wait(app, client, tmp_path, monkeypatch):
 
 
 def test_run_short_prediction_model_not_found(app):
-    from data5580_hw.tasks.prediction_tasks import run_short_prediction
+    from gated_finetune.tasks.prediction_tasks import run_short_prediction
 
     with app.app_context():
         result = run_short_prediction(
@@ -325,7 +325,7 @@ def test_run_short_prediction_model_load_error(app, tmp_path):
         db.session.add(model_sql)
         db.session.commit()
 
-    from data5580_hw.tasks.prediction_tasks import run_short_prediction
+    from gated_finetune.tasks.prediction_tasks import run_short_prediction
 
     with app.app_context():
         result = run_short_prediction("broken-short", "1", {"feature_1": 1, "feature_2": 2})
@@ -336,8 +336,8 @@ def test_run_short_prediction_model_load_error(app, tmp_path):
 def test_run_short_prediction_inference_error(app, tmp_path, monkeypatch):
     _create_model(app, tmp_path, name="short-infer-fail", version="1")
 
-    from data5580_hw.services import model_service as ms_mod
-    from data5580_hw.tasks.prediction_tasks import run_short_prediction
+    from gated_finetune.services import model_service as ms_mod
+    from gated_finetune.tasks.prediction_tasks import run_short_prediction
 
     monkeypatch.setattr(ms_mod.model_service, "create_inference", lambda *a: (_ for _ in ()).throw(InferenceError("boom")))
 
@@ -350,7 +350,7 @@ def test_run_short_prediction_inference_error(app, tmp_path, monkeypatch):
 def test_run_short_prediction_db_commit_failure(app, tmp_path, monkeypatch):
     _create_model(app, tmp_path, name="short-db-fail", version="1")
 
-    from data5580_hw.tasks.prediction_tasks import run_short_prediction
+    from gated_finetune.tasks.prediction_tasks import run_short_prediction
 
     original_commit = db.session.commit
     call_count = {"n": 0}
@@ -372,7 +372,7 @@ def test_run_short_prediction_db_commit_failure(app, tmp_path, monkeypatch):
 def test_run_short_prediction_success(app, tmp_path):
     _create_model(app, tmp_path, name="short-success", version="1")
 
-    from data5580_hw.tasks.prediction_tasks import run_short_prediction
+    from gated_finetune.tasks.prediction_tasks import run_short_prediction
 
     with app.app_context():
         result = run_short_prediction("short-success", "1", {"feature_1": 1, "feature_2": 2})
@@ -383,7 +383,7 @@ def test_run_short_prediction_success(app, tmp_path):
 def test_run_short_prediction_persists_to_db(app, tmp_path):
     _create_model(app, tmp_path, name="short-persist", version="1")
 
-    from data5580_hw.tasks.prediction_tasks import run_short_prediction
+    from gated_finetune.tasks.prediction_tasks import run_short_prediction
 
     with app.app_context():
         result = run_short_prediction("short-persist", "1", {"feature_1": 1, "feature_2": 2})
@@ -399,7 +399,7 @@ def test_run_short_prediction_persists_to_db(app, tmp_path):
 
 
 def test_run_long_prediction_model_not_found(app):
-    from data5580_hw.tasks.prediction_tasks import run_long_prediction
+    from gated_finetune.tasks.prediction_tasks import run_long_prediction
 
     with app.app_context():
         result = run_long_prediction("ghost-model", "1", {"feature_1": 1})
@@ -420,7 +420,7 @@ def test_run_long_prediction_model_load_error(app):
         db.session.add(model_sql)
         db.session.commit()
 
-    from data5580_hw.tasks.prediction_tasks import run_long_prediction
+    from gated_finetune.tasks.prediction_tasks import run_long_prediction
 
     with app.app_context():
         result = run_long_prediction("long-broken", "1", {"feature_1": 1})
@@ -430,8 +430,8 @@ def test_run_long_prediction_model_load_error(app):
 def test_run_long_prediction_inference_error(app, tmp_path, monkeypatch):
     _create_model(app, tmp_path, name="long-infer-fail", version="1")
 
-    from data5580_hw.services import model_service as ms_mod
-    from data5580_hw.tasks.prediction_tasks import run_long_prediction
+    from gated_finetune.services import model_service as ms_mod
+    from gated_finetune.tasks.prediction_tasks import run_long_prediction
 
     monkeypatch.setattr(
         ms_mod.model_service,
@@ -447,8 +447,8 @@ def test_run_long_prediction_inference_error(app, tmp_path, monkeypatch):
 def test_run_long_prediction_explanation_error(app, tmp_path, monkeypatch):
     _create_model(app, tmp_path, name="long-shap-fail", version="1")
 
-    from data5580_hw.services import explainer_service as es_mod
-    from data5580_hw.tasks.prediction_tasks import run_long_prediction
+    from gated_finetune.services import explainer_service as es_mod
+    from gated_finetune.tasks.prediction_tasks import run_long_prediction
 
     monkeypatch.setattr(
         es_mod.explainer_service,
@@ -465,9 +465,9 @@ def test_run_long_prediction_explanation_error(app, tmp_path, monkeypatch):
 def test_run_long_prediction_mlflow_error(app, tmp_path, monkeypatch):
     _create_model(app, tmp_path, name="long-mflow-fail", version="1")
 
-    from data5580_hw.services import explainer_service as es_mod
-    from data5580_hw.services import mlflow_service as mf_mod
-    from data5580_hw.tasks.prediction_tasks import run_long_prediction
+    from gated_finetune.services import explainer_service as es_mod
+    from gated_finetune.services import mlflow_service as mf_mod
+    from gated_finetune.tasks.prediction_tasks import run_long_prediction
 
     monkeypatch.setattr(
         es_mod.explainer_service,
@@ -491,10 +491,10 @@ def test_run_long_prediction_mlflow_error(app, tmp_path, monkeypatch):
 def test_run_long_prediction_embedding_error(app, tmp_path, monkeypatch):
     _create_model(app, tmp_path, name="long-umap-fail", version="1")
 
-    from data5580_hw.services import explainer_service as es_mod
-    from data5580_hw.services import mlflow_service as mf_mod
-    from data5580_hw.services import umap_service as us_mod
-    from data5580_hw.tasks.prediction_tasks import run_long_prediction
+    from gated_finetune.services import explainer_service as es_mod
+    from gated_finetune.services import mlflow_service as mf_mod
+    from gated_finetune.services import umap_service as us_mod
+    from gated_finetune.tasks.prediction_tasks import run_long_prediction
 
     monkeypatch.setattr(
         es_mod.explainer_service,
@@ -519,10 +519,10 @@ def test_run_long_prediction_embedding_error(app, tmp_path, monkeypatch):
 def test_run_long_prediction_db_commit_failure(app, tmp_path, monkeypatch):
     _create_model(app, tmp_path, name="long-db-fail", version="1")
 
-    from data5580_hw.services import explainer_service as es_mod
-    from data5580_hw.services import mlflow_service as mf_mod
-    from data5580_hw.services import umap_service as us_mod
-    from data5580_hw.tasks.prediction_tasks import run_long_prediction
+    from gated_finetune.services import explainer_service as es_mod
+    from gated_finetune.services import mlflow_service as mf_mod
+    from gated_finetune.services import umap_service as us_mod
+    from gated_finetune.tasks.prediction_tasks import run_long_prediction
 
     monkeypatch.setattr(
         es_mod.explainer_service,
@@ -557,11 +557,11 @@ def test_run_long_prediction_db_commit_failure(app, tmp_path, monkeypatch):
 def test_run_long_prediction_arize_error_non_fatal(app, tmp_path, monkeypatch):
     _create_model(app, tmp_path, name="long-arize-fail", version="1")
 
-    from data5580_hw.services import arize_service as ar_mod
-    from data5580_hw.services import explainer_service as es_mod
-    from data5580_hw.services import mlflow_service as mf_mod
-    from data5580_hw.services import umap_service as us_mod
-    from data5580_hw.tasks.prediction_tasks import run_long_prediction
+    from gated_finetune.services import arize_service as ar_mod
+    from gated_finetune.services import explainer_service as es_mod
+    from gated_finetune.services import mlflow_service as mf_mod
+    from gated_finetune.services import umap_service as us_mod
+    from gated_finetune.tasks.prediction_tasks import run_long_prediction
 
     monkeypatch.setattr(
         es_mod.explainer_service,
@@ -592,11 +592,11 @@ def test_run_long_prediction_arize_error_non_fatal(app, tmp_path, monkeypatch):
 def test_run_long_prediction_success_full(app, tmp_path, monkeypatch):
     _create_model(app, tmp_path, name="long-full", version="1")
 
-    from data5580_hw.services import arize_service as ar_mod
-    from data5580_hw.services import explainer_service as es_mod
-    from data5580_hw.services import mlflow_service as mf_mod
-    from data5580_hw.services import umap_service as us_mod
-    from data5580_hw.tasks.prediction_tasks import run_long_prediction
+    from gated_finetune.services import arize_service as ar_mod
+    from gated_finetune.services import explainer_service as es_mod
+    from gated_finetune.services import mlflow_service as mf_mod
+    from gated_finetune.services import umap_service as us_mod
+    from gated_finetune.tasks.prediction_tasks import run_long_prediction
 
     monkeypatch.setattr(
         es_mod.explainer_service,
@@ -628,11 +628,11 @@ def test_run_long_prediction_success_full(app, tmp_path, monkeypatch):
 def test_run_long_prediction_with_umap_config(app, tmp_path, monkeypatch):
     _create_model(app, tmp_path, name="long-umap-cfg", version="1")
 
-    from data5580_hw.services import arize_service as ar_mod
-    from data5580_hw.services import explainer_service as es_mod
-    from data5580_hw.services import mlflow_service as mf_mod
-    from data5580_hw.services import umap_service as us_mod
-    from data5580_hw.tasks.prediction_tasks import run_long_prediction
+    from gated_finetune.services import arize_service as ar_mod
+    from gated_finetune.services import explainer_service as es_mod
+    from gated_finetune.services import mlflow_service as mf_mod
+    from gated_finetune.services import umap_service as us_mod
+    from gated_finetune.tasks.prediction_tasks import run_long_prediction
 
     monkeypatch.setattr(
         es_mod.explainer_service,
@@ -663,20 +663,20 @@ def test_run_long_prediction_with_umap_config(app, tmp_path, monkeypatch):
 
 
 def test_extract_shap_no_explanations():
-    from data5580_hw.tasks.prediction_tasks import _extract_shap
+    from gated_finetune.tasks.prediction_tasks import _extract_shap
 
     assert _extract_shap(None) == {}
 
 
 def test_extract_shap_name_not_found():
-    from data5580_hw.tasks.prediction_tasks import _extract_shap
+    from gated_finetune.tasks.prediction_tasks import _extract_shap
 
     expl = Explanations(explanations=[Explanation(name="other", values={"f": 0.1})])
     assert _extract_shap(expl) == {}
 
 
 def test_extract_shap_found():
-    from data5580_hw.tasks.prediction_tasks import _extract_shap
+    from gated_finetune.tasks.prediction_tasks import _extract_shap
 
     expl = Explanations(
         explanations=[Explanation(name="shap_values", values={"f": 0.5})]
@@ -687,7 +687,7 @@ def test_extract_shap_found():
 def test_json_safe_numpy():
     import numpy as np
 
-    from data5580_hw.tasks.prediction_tasks import _json_safe
+    from gated_finetune.tasks.prediction_tasks import _json_safe
 
     val = np.float32(2.5)
     result = _json_safe(val)
@@ -696,7 +696,7 @@ def test_json_safe_numpy():
 
 
 def test_json_safe_plain():
-    from data5580_hw.tasks.prediction_tasks import _json_safe
+    from gated_finetune.tasks.prediction_tasks import _json_safe
 
     assert _json_safe("hello") == "hello"
     assert _json_safe(42) == 42
@@ -711,7 +711,7 @@ def test_result_response_success_with_error_dict():
     """A SUCCESS task that returns {error: ...} should be reported as FAILURE."""
     from unittest.mock import MagicMock
 
-    from data5580_hw.controllers.task import _result_response
+    from gated_finetune.controllers.task import _result_response
 
     mock_result = MagicMock()
     mock_result.status = "SUCCESS"
@@ -726,7 +726,7 @@ def test_result_response_success_with_error_dict():
 def test_result_response_failure():
     from unittest.mock import MagicMock
 
-    from data5580_hw.controllers.task import _result_response
+    from gated_finetune.controllers.task import _result_response
 
     mock_result = MagicMock()
     mock_result.status = "FAILURE"
@@ -741,7 +741,7 @@ def test_result_response_failure():
 def test_result_response_pending():
     from unittest.mock import MagicMock
 
-    from data5580_hw.controllers.task import _result_response
+    from gated_finetune.controllers.task import _result_response
 
     mock_result = MagicMock()
     mock_result.status = "PENDING"
@@ -769,7 +769,7 @@ def test_submit_wait_true_get_exception(app, client, tmp_path, monkeypatch):
     mock_result.get.side_effect = Exception("broker unreachable")
     mock_result.id = "fake-task-id"
 
-    with patch("data5580_hw.controllers.task.run_long_prediction") as mock_task:
+    with patch("gated_finetune.controllers.task.run_long_prediction") as mock_task:
         mock_task.delay.return_value = mock_result
         response = client.post(
             "/tasks/predictions/model/wait-exc/version/1",
@@ -788,7 +788,7 @@ def test_submit_wait_true_get_exception(app, client, tmp_path, monkeypatch):
 
 def test_worker_signals_do_not_raise():
     """Ensure signal handlers can be called without raising."""
-    from data5580_hw.celery_app import on_task_failure, on_task_retry, on_worker_ready, on_worker_shutdown
+    from gated_finetune.celery_app import on_task_failure, on_task_retry, on_worker_ready, on_worker_shutdown
     from unittest.mock import MagicMock
 
     on_worker_ready()

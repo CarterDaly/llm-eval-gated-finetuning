@@ -17,6 +17,8 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     steps:
     - uses: actions/checkout@v4
@@ -43,6 +45,6 @@ jobs:
         coverage xml
         cat coverage.xml
     - name: SonarQube Scan
+      # Skipped until a SONAR_TOKEN secret is configured for this repo
+      if: ${{ env.SONAR_TOKEN != '' }}
       uses: SonarSource/sonarqube-scan-action@v6
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

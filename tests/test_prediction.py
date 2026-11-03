@@ -2,16 +2,16 @@ import pickle
 
 import pytest
 
-from data5580_hw.app import create_app
-from data5580_hw.models.prediction import Explanation, Explanations
-from data5580_hw.services.database.database_client import db
-from data5580_hw.services.database.prediction import ExplanationSQL, ModelSQL, PredictionSQL
-from data5580_hw.services.arize_service import arize_service
-from data5580_hw.services.errors import ArizeLogError, EmbeddingError, ExplanationError, InferenceError, MlflowLogError
-from data5580_hw.services.model_service import model_service
-from data5580_hw.services.explainer_service import explainer_service
-from data5580_hw.services.mlflow_service import mlflow_service
-from data5580_hw.services.umap_service import umap_service
+from gated_finetune.app import create_app
+from gated_finetune.models.prediction import Explanation, Explanations
+from gated_finetune.services.database.database_client import db
+from gated_finetune.services.database.prediction import ExplanationSQL, ModelSQL, PredictionSQL
+from gated_finetune.services.arize_service import arize_service
+from gated_finetune.services.errors import ArizeLogError, EmbeddingError, ExplanationError, InferenceError, MlflowLogError
+from gated_finetune.services.model_service import model_service
+from gated_finetune.services.explainer_service import explainer_service
+from gated_finetune.services.mlflow_service import mlflow_service
+from gated_finetune.services.umap_service import umap_service
 
 
 class DummyModel:
@@ -480,12 +480,12 @@ def test_update_actual_not_found_returns_404(client):
 
 
 def test_extract_shap_values_returns_empty_when_no_explanations():
-    from data5580_hw.controllers.prediction import _extract_shap_values
+    from gated_finetune.controllers.prediction import _extract_shap_values
     assert _extract_shap_values(None) == {}
 
 
 def test_extract_shap_values_returns_empty_when_name_not_found():
-    from data5580_hw.controllers.prediction import _extract_shap_values
+    from gated_finetune.controllers.prediction import _extract_shap_values
     explanations = Explanations(
         explanations=[Explanation(name="other", values={"f": 0.1})]
     )
@@ -493,14 +493,14 @@ def test_extract_shap_values_returns_empty_when_name_not_found():
 
 
 def test_extract_embeddings_returns_empty_when_none():
-    from data5580_hw.controllers.prediction import _extract_embeddings
-    from data5580_hw.models.prediction import Prediction
+    from gated_finetune.controllers.prediction import _extract_embeddings
+    from gated_finetune.models.prediction import Prediction
     p = Prediction(features={"f": 1})
     assert _extract_embeddings(p) == {}
 
 
 def test_json_safe_calls_item_on_numpy_scalar():
-    from data5580_hw.controllers.prediction import _json_safe
+    from gated_finetune.controllers.prediction import _json_safe
     import numpy as np
     val = np.float32(1.5)
     result = _json_safe(val)
@@ -560,7 +560,7 @@ def test_create_prediction_inference_error_returns_500(app, client, tmp_path, mo
     _create_model(app, tmp_path, name="infer-fail", version="1")
 
     def fake_inference(model, prediction):
-        from data5580_hw.services.errors import InferenceError
+        from gated_finetune.services.errors import InferenceError
         raise InferenceError("Inference exploded.")
 
     monkeypatch.setattr(model_service, "create_inference", fake_inference)

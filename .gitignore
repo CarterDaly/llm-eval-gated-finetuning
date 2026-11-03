@@ -1,10 +1,25 @@
+# Environments and secrets
 .venv
+.env
+
+# Local databases (SQLite dev DB, MLflow backend stores)
 **.db
 
-logs
-*.log
+# MLflow local stores; run a tracking server instead (see docker-compose.yml)
+mlruns/
+mlartifacts/
 
+# Model artifacts belong in the registry, not git
+*.pkl
+
+# Python and test caches
 __pycache__/
 *.pyc
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
 
-.env
+# Logs
+logs
+*.log

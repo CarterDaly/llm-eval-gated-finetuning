@@ -2,8 +2,18 @@ import pytest
 
 from sqlalchemy.orm import sessionmaker, Session
 
-from data5580_hw.services.database.database_client import db
-from data5580_hw.services.mlflow_service import mlflow_service
+from gated_finetune.services.database.database_client import db
+from gated_finetune.services.mlflow_service import mlflow_service
+
+
+@pytest.fixture(autouse=True)
+def _isolated_database(monkeypatch, tmp_path):
+    """Point every app created during a test at its own throwaway SQLite file.
+
+    init_db no longer drops tables on startup, so sharing instance/data.db
+    would leak rows between tests (and pollute the dev database).
+    """
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'test.db'}")
 
 
 @pytest.fixture(autouse=True)

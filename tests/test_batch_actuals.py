@@ -3,14 +3,14 @@ import pickle
 
 import pytest
 
-from data5580_hw.app import create_app
-from data5580_hw.models.prediction import Explanation, Explanations
-from data5580_hw.services.database.database_client import db
-from data5580_hw.services.database.prediction import ModelSQL
-from data5580_hw.services.arize_service import arize_service
-from data5580_hw.services.explainer_service import explainer_service
-from data5580_hw.services.mlflow_service import mlflow_service
-from data5580_hw.services.umap_service import umap_service
+from gated_finetune.app import create_app
+from gated_finetune.models.prediction import Explanation, Explanations
+from gated_finetune.services.database.database_client import db
+from gated_finetune.services.database.prediction import ModelSQL
+from gated_finetune.services.arize_service import arize_service
+from gated_finetune.services.explainer_service import explainer_service
+from gated_finetune.services.mlflow_service import mlflow_service
+from gated_finetune.services.umap_service import umap_service
 
 
 class _DummyModel:
@@ -153,7 +153,7 @@ def test_batch_update_invalid_body(setup):
 
 
 def test_batch_update_persists_actual_value(app, setup):
-    from data5580_hw.services.database.prediction import PredictionSQL
+    from gated_finetune.services.database.prediction import PredictionSQL
 
     p1 = _create_prediction(setup)
 

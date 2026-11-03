@@ -4,15 +4,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from data5580_hw.app import create_app
-from data5580_hw.models.prediction import Explanation, Explanations, Prediction
-from data5580_hw.services.database.database_client import db
-from data5580_hw.services.database.prediction import ExplanationSQL, ModelSQL, PredictionSQL
-from data5580_hw.services.errors import LLMError
-from data5580_hw.services.explainer_service import explainer_service
-from data5580_hw.services.llm_service import LLMService, llm_service
-from data5580_hw.services.mlflow_service import mlflow_service
-from data5580_hw.services.umap_service import umap_service
+from gated_finetune.app import create_app
+from gated_finetune.models.prediction import Explanation, Explanations, Prediction
+from gated_finetune.services.database.database_client import db
+from gated_finetune.services.database.prediction import ExplanationSQL, ModelSQL, PredictionSQL
+from gated_finetune.services.errors import LLMError
+from gated_finetune.services.explainer_service import explainer_service
+from gated_finetune.services.llm_service import LLMService, llm_service
+from gated_finetune.services.mlflow_service import mlflow_service
+from gated_finetune.services.umap_service import umap_service
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +212,7 @@ def test_generate_summary_returns_string():
     service = LLMService()
     target = _FakePrediction("t", "yes", {"x": 1.0})
 
-    with patch("data5580_hw.services.llm_service.requests.post", return_value=_make_mock_response("This is a summary.")):
+    with patch("gated_finetune.services.llm_service.requests.post", return_value=_make_mock_response("This is a summary.")):
         result = service.generate_summary(target, [])
 
     assert result == "This is a summary."
@@ -224,7 +224,7 @@ def test_generate_summary_with_nearest_predictions():
     near = _FakePrediction("n", "no", {"x": 0.9})
     target = _FakePrediction("t", "yes", {"x": 1.0})
 
-    with patch("data5580_hw.services.llm_service.requests.post", return_value=_make_mock_response("Summary with context.")):
+    with patch("gated_finetune.services.llm_service.requests.post", return_value=_make_mock_response("Summary with context.")):
         result = service.generate_summary(target, [near])
 
     assert result == "Summary with context."
@@ -235,7 +235,7 @@ def test_generate_summary_wraps_connection_error():
     service = LLMService()
     target = _FakePrediction("t", "yes", {"x": 1.0})
 
-    with patch("data5580_hw.services.llm_service.requests.post", side_effect=RuntimeError("connection refused")):
+    with patch("gated_finetune.services.llm_service.requests.post", side_effect=RuntimeError("connection refused")):
         with pytest.raises(LLMError, match="LLM API call failed"):
             service.generate_summary(target, [])
 
@@ -244,7 +244,7 @@ def test_generate_summary_wraps_exception():
     service = LLMService()
     target = _FakePrediction("t", "yes", {"x": 1.0})
 
-    with patch("data5580_hw.services.llm_service.requests.post", side_effect=RuntimeError("network error")):
+    with patch("gated_finetune.services.llm_service.requests.post", side_effect=RuntimeError("network error")):
         with pytest.raises(LLMError, match="LLM API call failed"):
             service.generate_summary(target, [])
 
@@ -254,7 +254,7 @@ def test_generate_summary_reraises_llm_error():
     service = LLMService()
     target = _FakePrediction("t", "yes", {"x": 1.0})
 
-    with patch("data5580_hw.services.llm_service.requests.post", side_effect=LLMError("inner LLM error")):
+    with patch("gated_finetune.services.llm_service.requests.post", side_effect=LLMError("inner LLM error")):
         with pytest.raises(LLMError, match="inner LLM error"):
             service.generate_summary(target, [])
 
@@ -269,7 +269,7 @@ def test_generate_summary_raises_on_http_error():
     mock_resp = MagicMock()
     mock_resp.raise_for_status.side_effect = req.HTTPError("500 Server Error")
 
-    with patch("data5580_hw.services.llm_service.requests.post", return_value=mock_resp):
+    with patch("gated_finetune.services.llm_service.requests.post", return_value=mock_resp):
         with pytest.raises(LLMError, match="LLM API call failed"):
             service.generate_summary(target, [])
 
@@ -282,7 +282,7 @@ def test_generate_summary_uses_env_vars(monkeypatch):
     service = LLMService()
     target = _FakePrediction("t", "yes", {"x": 1.0})
 
-    with patch("data5580_hw.services.llm_service.requests.post", return_value=_make_mock_response()) as mock_post:
+    with patch("gated_finetune.services.llm_service.requests.post", return_value=_make_mock_response()) as mock_post:
         service.generate_summary(target, [])
 
     call_args = mock_post.call_args

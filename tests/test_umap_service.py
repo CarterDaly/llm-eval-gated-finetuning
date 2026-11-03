@@ -3,9 +3,9 @@ from unittest.mock import patch
 
 import pytest
 
-from data5580_hw.models.prediction import Model, Prediction, UmapConfig
-from data5580_hw.services.errors import EmbeddingError
-from data5580_hw.services.umap_service import UmapService
+from gated_finetune.models.prediction import Model, Prediction, UmapConfig
+from gated_finetune.services.errors import EmbeddingError
+from gated_finetune.services.umap_service import UmapService
 
 
 def test_axis_names_handles_extra_components():

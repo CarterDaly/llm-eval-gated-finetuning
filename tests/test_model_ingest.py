@@ -4,9 +4,9 @@ import pickle
 
 import pytest
 
-from data5580_hw.app import create_app
-from data5580_hw.services.database.database_client import db
-from data5580_hw.services.database.prediction import ModelSQL
+from gated_finetune.app import create_app
+from gated_finetune.services.database.database_client import db
+from gated_finetune.services.database.prediction import ModelSQL
 
 
 class _DummyModel:
@@ -43,7 +43,7 @@ def client(app):
 def test_ingest_creates_model(client, tmp_path, monkeypatch):
     monkeypatch.setenv("MODELS_DIR", str(tmp_path))
     # Need to reload the module so the env var takes effect
-    import data5580_hw.controllers.model as mc
+    import gated_finetune.controllers.model as mc
     monkeypatch.setattr(mc, "_MODELS_DIR", str(tmp_path))
 
     resp = client.post(
@@ -75,7 +75,7 @@ def test_ingest_missing_file(client):
 
 
 def test_ingest_missing_name(client, tmp_path, monkeypatch):
-    import data5580_hw.controllers.model as mc
+    import gated_finetune.controllers.model as mc
     monkeypatch.setattr(mc, "_MODELS_DIR", str(tmp_path))
 
     resp = client.post(
@@ -88,7 +88,7 @@ def test_ingest_missing_name(client, tmp_path, monkeypatch):
 
 
 def test_ingest_missing_version(client, tmp_path, monkeypatch):
-    import data5580_hw.controllers.model as mc
+    import gated_finetune.controllers.model as mc
     monkeypatch.setattr(mc, "_MODELS_DIR", str(tmp_path))
 
     resp = client.post(
@@ -101,7 +101,7 @@ def test_ingest_missing_version(client, tmp_path, monkeypatch):
 
 
 def test_ingest_missing_features(client, tmp_path, monkeypatch):
-    import data5580_hw.controllers.model as mc
+    import gated_finetune.controllers.model as mc
     monkeypatch.setattr(mc, "_MODELS_DIR", str(tmp_path))
 
     resp = client.post(
@@ -114,7 +114,7 @@ def test_ingest_missing_features(client, tmp_path, monkeypatch):
 
 
 def test_ingest_duplicate_returns_409(client, tmp_path, monkeypatch):
-    import data5580_hw.controllers.model as mc
+    import gated_finetune.controllers.model as mc
     monkeypatch.setattr(mc, "_MODELS_DIR", str(tmp_path))
 
     for _ in range(2):
@@ -134,7 +134,7 @@ def test_ingest_duplicate_returns_409(client, tmp_path, monkeypatch):
 
 
 def test_ingest_optional_fields(client, tmp_path, monkeypatch):
-    import data5580_hw.controllers.model as mc
+    import gated_finetune.controllers.model as mc
     monkeypatch.setattr(mc, "_MODELS_DIR", str(tmp_path))
 
     resp = client.post(
@@ -165,7 +165,7 @@ def test_list_models_empty(client):
 
 
 def test_list_models_returns_registered(client, app, tmp_path, monkeypatch):
-    import data5580_hw.controllers.model as mc
+    import gated_finetune.controllers.model as mc
     monkeypatch.setattr(mc, "_MODELS_DIR", str(tmp_path))
 
     client.post(

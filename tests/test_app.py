@@ -1,6 +1,6 @@
 import pytest
 
-from data5580_hw.app import create_app
+from gated_finetune.app import create_app
 
 
 @pytest.fixture
@@ -184,7 +184,7 @@ def test_create_user_non_json_body_returns_400(client):
 
 def test_create_user_invalid_details_generic_branch(client):
     """Validation error that is not 'missing' and not 'email' hits generic branch."""
-    from data5580_hw.controllers.user import _validation_error_response
+    from gated_finetune.controllers.user import _validation_error_response
     from pydantic import BaseModel, ValidationError
     from flask import Flask
 

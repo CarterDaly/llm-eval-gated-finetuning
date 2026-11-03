@@ -3,9 +3,9 @@ import pickle
 
 import pytest
 
-from data5580_hw.models.prediction import Model, Prediction
-from data5580_hw.services.errors import InferenceError, ModelLoadError
-from data5580_hw.services.model_service import ModelService
+from gated_finetune.models.prediction import Model, Prediction
+from gated_finetune.services.errors import InferenceError, ModelLoadError
+from gated_finetune.services.model_service import ModelService
 
 
 # ---------------------------------------------------------------------------

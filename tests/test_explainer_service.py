@@ -2,9 +2,9 @@
 import numpy as np
 import pytest
 
-from data5580_hw.models.prediction import Explanation, Explanations, Model, Prediction
-from data5580_hw.services.errors import ExplanationError
-from data5580_hw.services.explainer_service import ExplainerService
+from gated_finetune.models.prediction import Explanation, Explanations, Model, Prediction
+from gated_finetune.services.errors import ExplanationError
+from gated_finetune.services.explainer_service import ExplainerService
 
 
 # ---------------------------------------------------------------------------

@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from data5580_hw.services.arize_service import ArizeService
-from data5580_hw.services.errors import ArizeLogError
+from gated_finetune.services.arize_service import ArizeService
+from gated_finetune.services.errors import ArizeLogError
 
 
 # ---------------------------------------------------------------------------
@@ -14,11 +14,11 @@ from data5580_hw.services.errors import ArizeLogError
 # ---------------------------------------------------------------------------
 
 def _make_mock_arize(status_code: int = 200, response_text: str = "OK"):
-    """Return (Client_cls, ModelTypes, Environments) mocks."""
+    """Return (Client_cls, ModelTypes, Environments, client_instance) mocks."""
 
     class _Environments:
         PRODUCTION = "production"
-        STAGING = "staging"
+        VALIDATION = "validation"
         TRAINING = "training"
 
     class _ModelTypes:
@@ -29,11 +29,16 @@ def _make_mock_arize(status_code: int = 200, response_text: str = "OK"):
     mock_response.text = response_text
 
     mock_client_instance = MagicMock()
-    mock_client_instance.log.return_value = mock_response
+    mock_client_instance.log.return_value.result.return_value = mock_response
 
     mock_client_cls = MagicMock(return_value=mock_client_instance)
 
     return mock_client_cls, _ModelTypes, _Environments, mock_client_instance
+
+
+class _Embedding:
+    def __init__(self, vector):
+        self.vector = vector
 
 
 @pytest.fixture
@@ -111,7 +116,7 @@ def test_get_credentials_missing_space_key(service, monkeypatch):
 
 class _Envs:
     PRODUCTION = "production"
-    STAGING = "staging"
+    VALIDATION = "validation"
     TRAINING = "training"
 
 
@@ -122,7 +127,7 @@ def test_resolve_environment_production():
 
 def test_resolve_environment_staging():
     result = ArizeService._resolve_environment(_Envs, "staging")
-    assert result == _Envs.STAGING
+    assert result == _Envs.VALIDATION
 
 
 def test_resolve_environment_development():
@@ -137,7 +142,7 @@ def test_resolve_environment_unknown_defaults_to_production():
 
 def test_resolve_environment_case_insensitive():
     result = ArizeService._resolve_environment(_Envs, "STAGING")
-    assert result == _Envs.STAGING
+    assert result == _Envs.VALIDATION
 
 
 # ---------------------------------------------------------------------------
@@ -160,26 +165,29 @@ def test_import_arize_sdk_not_installed(service):
 
 
 def test_import_arize_success(service, monkeypatch):
-    """_import_arize should return three objects when SDK is present."""
+    """_import_arize should return four objects when SDK is present."""
     mock_client = MagicMock()
     mock_model_types = MagicMock()
     mock_environments = MagicMock()
+    mock_embedding = MagicMock()
 
     mock_arize_api = MagicMock()
     mock_arize_api.Client = mock_client
     mock_arize_types = MagicMock()
     mock_arize_types.ModelTypes = mock_model_types
     mock_arize_types.Environments = mock_environments
+    mock_arize_types.Embedding = mock_embedding
 
     monkeypatch.setitem(sys.modules, "arize", MagicMock())
     monkeypatch.setitem(sys.modules, "arize.api", mock_arize_api)
     monkeypatch.setitem(sys.modules, "arize.utils", MagicMock())
     monkeypatch.setitem(sys.modules, "arize.utils.types", mock_arize_types)
 
-    Client, ModelTypes, Environments = service._import_arize()
+    Client, ModelTypes, Environments, Embedding = service._import_arize()
     assert Client is mock_client
     assert ModelTypes is mock_model_types
     assert Environments is mock_environments
+    assert Embedding is mock_embedding
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +208,7 @@ def test_log_inference_disabled_returns_false(service, monkeypatch):
 
 def test_log_inference_success(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
 
     result = service.log_inference(
         prediction_id="p1",
@@ -222,7 +230,7 @@ def test_log_inference_success(service, monkeypatch, arize_env):
 
 def test_log_inference_with_actual_label(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
 
     service.log_inference(
         prediction_id="p2",
@@ -239,7 +247,7 @@ def test_log_inference_with_actual_label(service, monkeypatch, arize_env):
 
 def test_log_inference_with_shap_values(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
 
     service.log_inference(
         prediction_id="p3",
@@ -256,7 +264,7 @@ def test_log_inference_with_shap_values(service, monkeypatch, arize_env):
 
 def test_log_inference_with_timestamp(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
 
     ts = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
     service.log_inference(
@@ -272,10 +280,27 @@ def test_log_inference_with_timestamp(service, monkeypatch, arize_env):
     assert call_kwargs["prediction_timestamp"] == int(ts.timestamp())
 
 
+def test_log_inference_with_embedding(service, monkeypatch, arize_env):
+    Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
+
+    service.log_inference(
+        prediction_id="p-emb",
+        model_name="demo",
+        model_version="1",
+        prediction_label="yes",
+        features={"f": 1},
+        embedding={"umap_0": 0.1, "umap_1": 0.2},
+    )
+
+    call_kwargs = mock_client_instance.log.call_args.kwargs
+    assert call_kwargs["embedding_features"]["umap"].vector == [0.1, 0.2]
+
+
 def test_log_inference_without_optional_fields(service, monkeypatch, arize_env):
     """No optional kwargs should be present when not supplied."""
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
 
     service.log_inference(
         prediction_id="p5",
@@ -291,10 +316,10 @@ def test_log_inference_without_optional_fields(service, monkeypatch, arize_env):
     assert "prediction_timestamp" not in call_kwargs
 
 
-def test_log_inference_default_environment_is_development(service, monkeypatch, arize_env):
-    """When ARIZE_ENVIRONMENT is unset, the default should be development (TRAINING)."""
+def test_log_inference_default_environment_is_production(service, monkeypatch, arize_env):
+    """When ARIZE_ENVIRONMENT is unset, the default should be production."""
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
     # arize_env fixture already deletes ARIZE_ENVIRONMENT
 
     service.log_inference(
@@ -306,12 +331,12 @@ def test_log_inference_default_environment_is_development(service, monkeypatch, 
     )
 
     call_kwargs = mock_client_instance.log.call_args.kwargs
-    assert call_kwargs["environment"] == Environments.TRAINING
+    assert call_kwargs["environment"] == Environments.PRODUCTION
 
 
 def test_log_inference_uses_environment_env_var(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
     monkeypatch.setenv("ARIZE_ENVIRONMENT", "staging")
 
     service.log_inference(
@@ -323,12 +348,12 @@ def test_log_inference_uses_environment_env_var(service, monkeypatch, arize_env)
     )
 
     call_kwargs = mock_client_instance.log.call_args.kwargs
-    assert call_kwargs["environment"] == Environments.STAGING
+    assert call_kwargs["environment"] == Environments.VALIDATION
 
 
 def test_log_inference_environment_parameter_overrides_env_var(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
     monkeypatch.setenv("ARIZE_ENVIRONMENT", "production")
 
     service.log_inference(
@@ -341,14 +366,14 @@ def test_log_inference_environment_parameter_overrides_env_var(service, monkeypa
     )
 
     call_kwargs = mock_client_instance.log.call_args.kwargs
-    assert call_kwargs["environment"] == Environments.STAGING
+    assert call_kwargs["environment"] == Environments.VALIDATION
 
 
 def test_log_inference_api_non_200_raises(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize(
         status_code=500, response_text="Internal Server Error"
     )
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
 
     with pytest.raises(ArizeLogError, match="500"):
         service.log_inference(
@@ -363,7 +388,7 @@ def test_log_inference_api_non_200_raises(service, monkeypatch, arize_env):
 def test_log_inference_client_exception_raises(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
     mock_client_instance.log.side_effect = RuntimeError("network error")
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
 
     with pytest.raises(ArizeLogError, match="Failed to log inference"):
         service.log_inference(
@@ -422,7 +447,7 @@ def test_log_actual_disabled_returns_false(service, monkeypatch):
 
 def test_log_actual_success(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
 
     result = service.log_actual(
         prediction_id="p1",
@@ -441,7 +466,7 @@ def test_log_actual_success(service, monkeypatch, arize_env):
 
 def test_log_actual_with_environment_parameter(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
 
     service.log_actual(
         prediction_id="p2",
@@ -452,14 +477,14 @@ def test_log_actual_with_environment_parameter(service, monkeypatch, arize_env):
     )
 
     call_kwargs = mock_client_instance.log.call_args.kwargs
-    assert call_kwargs["environment"] == Environments.STAGING
+    assert call_kwargs["environment"] == Environments.VALIDATION
 
 
 def test_log_actual_api_non_200_raises(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize(
         status_code=400, response_text="Bad Request"
     )
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
 
     with pytest.raises(ArizeLogError, match="400"):
         service.log_actual(
@@ -473,7 +498,7 @@ def test_log_actual_api_non_200_raises(service, monkeypatch, arize_env):
 def test_log_actual_client_exception_raises(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
     mock_client_instance.log.side_effect = ConnectionError("timeout")
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
 
     with pytest.raises(ArizeLogError, match="Failed to log actual"):
         service.log_actual(
@@ -500,7 +525,7 @@ def test_log_actual_missing_credentials_raises(service, monkeypatch):
 
 def test_log_actual_uses_environment_env_var(service, monkeypatch, arize_env):
     Client, ModelTypes, Environments, mock_client_instance = _make_mock_arize()
-    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments))
+    monkeypatch.setattr(service, "_import_arize", lambda: (Client, ModelTypes, Environments, _Embedding))
     monkeypatch.setenv("ARIZE_ENVIRONMENT", "development")
 
     service.log_actual(

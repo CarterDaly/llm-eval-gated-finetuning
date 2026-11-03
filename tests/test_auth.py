@@ -1,7 +1,7 @@
 """Tests for API key authentication middleware."""
 import pytest
 
-from data5580_hw.app import create_app
+from gated_finetune.app import create_app
 
 
 @pytest.fixture

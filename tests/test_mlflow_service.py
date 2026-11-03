@@ -3,8 +3,8 @@ from unittest.mock import patch
 
 import pytest
 
-from data5580_hw.services.errors import MlflowLogError
-from data5580_hw.services.mlflow_service import MlflowService
+from gated_finetune.services.errors import MlflowLogError
+from gated_finetune.services.mlflow_service import MlflowService
 
 
 def test_log_shap_once_skips_when_existing_artifact_path():
