@@ -2,34 +2,16 @@ import logging
 
 from celery.result import AsyncResult
 from flask import jsonify, request
-from pydantic import ValidationError
 
 from gated_finetune.celery_app import celery
+from gated_finetune.controllers.common import parse_body
 from gated_finetune.models.prediction import PredictionRequest
 from gated_finetune.models.task import TaskStatus
 from gated_finetune.tasks.prediction_tasks import run_long_prediction, run_short_prediction
 
 logger = logging.getLogger(__name__)
 
-_TERMINAL_STATES = {"SUCCESS", "FAILURE", "REVOKED"}
 _TASK_WAIT_TIMEOUT = 30
-
-
-def _parse_prediction_request():
-    data = request.get_json(silent=True)
-    required = [n for n, f in PredictionRequest.model_fields.items() if f.is_required()]
-    if not isinstance(data, dict):
-        return None, (jsonify({"error": "Missing required fields: {}".format(", ".join(sorted(required)))}), 400)
-    try:
-        return PredictionRequest.model_validate(data), None
-    except ValidationError as exc:
-        errors = exc.errors()
-        missing = [str(err["loc"][0]) for err in errors if err.get("type") == "missing"]
-        if missing:
-            return None, (jsonify({"error": "Missing required fields: {}".format(", ".join(sorted(missing)))}), 400)
-        if any("umap" in err.get("loc", ()) for err in errors):
-            return None, (jsonify({"error": "Invalid UMAP configuration"}), 400)
-        return None, (jsonify({"error": "Invalid request body"}), 400)
 
 
 def _result_response(async_result: AsyncResult):
@@ -66,7 +48,7 @@ class TaskController:
             task_type: "short" | "long"  (default: "long")
             wait:      "true"            (if present, block until complete)
         """
-        prediction_request, error = _parse_prediction_request()
+        prediction_request, error = parse_body(PredictionRequest)
         if error:
             return error
 

@@ -1,10 +1,6 @@
+import hmac
+import logging
 import os
-import tempfile
-
-os.environ['PROMETHEUS_MULTIPROC_DIR'] = tempfile.mkdtemp()
-
-# Standardlibrary
-import  logging
 
 # Installed
 from flask import Flask, jsonify, request
@@ -38,7 +34,8 @@ def _init_auth(app: Flask) -> None:
         if request.path in _PUBLIC_PATHS:
             return None
         provided = request.headers.get("X-API-Key", "")
-        if provided != api_key:
+        # Constant-time comparison so response timing doesn't leak the key.
+        if not hmac.compare_digest(provided.encode(), api_key.encode()):
             return jsonify({"error": "Unauthorized"}), 401
 
 
@@ -55,7 +52,7 @@ def create_app():
 
     @app.route("/", methods=["GET"])
     def home():
-        return jsonify({"message": "Hello, Flask!"})
+        return jsonify({"status": "ok"})
 
     init_blueprints(app)
     init_metrics(app)

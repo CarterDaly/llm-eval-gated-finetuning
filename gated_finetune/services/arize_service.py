@@ -14,9 +14,9 @@ class ArizeService:
     Wraps the Arize Python SDK to log inferences and actuals.
     Controlled via environment variables:
       ARIZE_API_KEY      - Arize API key (required when enabled)
-      ARIZE_SPACE_KEY    - Arize space key (required when enabled)
+      ARIZE_SPACE_ID     - Arize space ID (required when enabled)
       ARIZE_ENVIRONMENT  - production | staging | development (default: production)
-      ARIZE_ENABLED      - true | false  (default: true)
+      ARIZE_ENABLED      - true | false  (default: false)
     """
 
     def log_inference(
@@ -41,12 +41,12 @@ class ArizeService:
         if not self._is_enabled():
             return False
 
-        api_key, space_key = self._get_credentials()
+        api_key, space_id = self._get_credentials()
         Client, ModelTypes, Environments, Embedding = self._import_arize()
 
         env_name = environment or os.getenv("ARIZE_ENVIRONMENT", "production")
         arize_env = self._resolve_environment(Environments, env_name)
-        client = Client(space_id=space_key, api_key=api_key)
+        client = Client(space_id=space_id, api_key=api_key)
 
         kwargs: Dict[str, Any] = dict(
             prediction_id=prediction_id,
@@ -96,12 +96,12 @@ class ArizeService:
         if not self._is_enabled():
             return False
 
-        api_key, space_key = self._get_credentials()
+        api_key, space_id = self._get_credentials()
         Client, ModelTypes, Environments, _ = self._import_arize()
 
         env_name = environment or os.getenv("ARIZE_ENVIRONMENT", "production")
         arize_env = self._resolve_environment(Environments, env_name)
-        client = Client(space_id=space_key, api_key=api_key)
+        client = Client(space_id=space_id, api_key=api_key)
 
         try:
             future = client.log(
@@ -125,16 +125,17 @@ class ArizeService:
 
     @staticmethod
     def _is_enabled() -> bool:
-        return os.getenv("ARIZE_ENABLED", "true").lower() not in ("false", "0", "no")
+        # Opt-in: logging real traffic to a third party should never happen by default.
+        return os.getenv("ARIZE_ENABLED", "false").lower() in ("true", "1", "yes")
 
     def _get_credentials(self):
         api_key = os.getenv("ARIZE_API_KEY")
-        space_key = os.getenv("ARIZE_SPACE_KEY")
+        space_id = os.getenv("ARIZE_SPACE_ID")
         if not api_key:
             raise ArizeLogError("ARIZE_API_KEY environment variable is not set.")
-        if not space_key:
-            raise ArizeLogError("ARIZE_SPACE_KEY environment variable is not set.")
-        return api_key, space_key
+        if not space_id:
+            raise ArizeLogError("ARIZE_SPACE_ID environment variable is not set.")
+        return api_key, space_id
 
     @staticmethod
     def _resolve_environment(Environments, env_name: str):

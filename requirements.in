@@ -1,0 +1,31 @@
+# Top-level runtime dependencies. requirements.txt is the pinned lockfile
+# generated from this file; after editing, regenerate it with:
+#   uv pip compile requirements.in --universal --python-version 3.12 -o requirements.txt
+#   uv pip compile requirements-dev.in --universal --python-version 3.12 -o requirements-dev.txt
+
+# Web app and database
+flask
+flask-sqlalchemy
+flask-migrate
+psycopg2-binary
+pydantic
+python-dotenv          # lets the flask CLI read FLASK_APP etc. from .env
+gunicorn
+
+# Async jobs
+celery
+redis
+
+# Monitoring and tracking
+prometheus-client
+mlflow==3.17.2         # keep equal to the mlflow image tag in docker-compose.yml
+arize<8.0.0            # arize_service.py targets the 7.x SDK (arize.api.Client)
+
+# Classical-baseline model path (SHAP explanations, UMAP embeddings)
+numpy
+pandas
+shap
+umap-learn
+
+# Ollama client for LLM explanations
+requests

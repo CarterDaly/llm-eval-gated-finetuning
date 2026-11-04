@@ -1,9 +1,12 @@
 # Environments and secrets
 .venv
 .env
+.env.*
+!.env.example
 
 # Local databases (SQLite dev DB, MLflow backend stores)
 **.db
+/instance/
 
 # MLflow local stores; run a tracking server instead (see docker-compose.yml)
 mlruns/
@@ -11,15 +14,29 @@ mlartifacts/
 
 # Model artifacts belong in the registry, not git
 *.pkl
+/models/
 
-# Python and test caches
+# Python, test and tool caches
 __pycache__/
 *.pyc
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
 .coverage
 coverage.xml
 htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Editors and OS
+.ipynb_checkpoints/
+.DS_Store
 
 # Logs
 logs
 *.log
+
+# Local assistant instructions (kept out of the public repo)
+CLAUDE.md

@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-from gated_finetune.models.prediction import Explanation, Explanations, Model, Prediction
+from gated_finetune.models.prediction import Explanations, Model, Prediction
 from gated_finetune.services.errors import ExplanationError
 from gated_finetune.services.explainer_service import ExplainerService
 
@@ -170,6 +170,7 @@ def _mock_shap():
     class _FakeExplainer:
         def __init__(self, *args, **kwargs):
             pass
+
         def __call__(self, frame):
             return _fake_shap_result(np.array([[0.0, 0.0]]))
 
@@ -286,12 +287,3 @@ def test_to_shap_mapping_unsupported_shape_raises(service):
 def test_to_shap_mapping_wrong_length_raises(service):
     with pytest.raises(ExplanationError, match="does not match feature count"):
         service._to_shap_mapping(np.array([0.1, 0.2, 0.3]), ["f1", "f2"])
-
-
-def test_to_shap_mapping_numpy_not_installed_raises(service, monkeypatch):
-    import sys
-    from unittest.mock import patch
-
-    with patch.dict(sys.modules, {"numpy": None}):
-        with pytest.raises(ExplanationError, match="NumPy"):
-            service._to_shap_mapping(np.array([0.1, 0.2]), ["f1", "f2"])

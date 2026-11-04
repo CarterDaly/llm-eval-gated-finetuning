@@ -3,17 +3,11 @@ from flask import Blueprint
 from gated_finetune.controllers.prediction import prediction_controller
 
 
-
 prediction = Blueprint("prediction", __name__)
 
 
 @prediction.route("/predictions/model/<model_name>/version/<model_version>", methods=["POST"])
 def create_prediction(model_name: str, model_version: str):
-    return prediction_controller.create_prediction(model_name, model_version)
-
-
-@prediction.route("/model/<model_name>/version/<model_version>", methods=["POST"])
-def create_prediction_legacy(model_name: str, model_version: str):
     return prediction_controller.create_prediction(model_name, model_version)
 
 

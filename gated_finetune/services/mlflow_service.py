@@ -1,10 +1,17 @@
 import os
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from gated_finetune.services.errors import MlflowLogError
 
 
 class MlflowService:
+    """Logs per-model artifacts to the MLflow tracking server.
+
+    The server is chosen only by MLFLOW_TRACKING_URI, which MLflow reads itself.
+    It is required: without it MLflow silently falls back to a local ./mlflow.db,
+    and the artifact would end up somewhere nobody looks.
+    """
+
     def log_shap_once(
         self,
         *,
@@ -14,33 +21,19 @@ class MlflowService:
         shap_values: Dict[str, float],
         prediction_id: str,
         existing_artifact_path: Optional[str] = None,
-        tracking_uri: Optional[str] = None,
     ) -> Optional[str]:
-        if existing_artifact_path:
-            return None
-        if not run_id:
-            raise MlflowLogError("MLflow run id is missing for model.")
-
-        mlflow = self._import_mlflow()
-        uri = tracking_uri or os.getenv("MLFLOW_TRACKING_URI")
-        if uri:
-            mlflow.set_tracking_uri(uri)
-
-        artifact_path = f"shap/{model_name}/{model_version}/first_inference.json"
-        payload = {
-            "model_name": model_name,
-            "model_version": model_version,
-            "prediction_id": prediction_id,
-            "shap_values": shap_values,
-        }
-
-        try:
-            client = mlflow.tracking.MlflowClient()
-            client.log_dict(run_id, payload, artifact_path)
-        except Exception as exc:
-            raise MlflowLogError("Failed to log SHAP values to MLflow.") from exc
-
-        return artifact_path
+        """Log SHAP values from a model's first inference; a no-op once logged."""
+        return self._log_first_inference(
+            kind="shap",
+            label="SHAP values",
+            values_key="shap_values",
+            values=shap_values,
+            run_id=run_id,
+            model_name=model_name,
+            model_version=model_version,
+            prediction_id=prediction_id,
+            existing_artifact_path=existing_artifact_path,
+        )
 
     def log_embedding_once(
         self,
@@ -51,41 +44,60 @@ class MlflowService:
         embedding: Dict[str, float],
         prediction_id: str,
         existing_artifact_path: Optional[str] = None,
-        tracking_uri: Optional[str] = None,
     ) -> Optional[str]:
-        """Log UMAP embedding coordinates to MLflow on the first inference.
+        """Log UMAP coordinates from a model's first inference; a no-op once logged."""
+        return self._log_first_inference(
+            kind="embeddings",
+            label="embedding",
+            values_key="embedding",
+            values=embedding,
+            run_id=run_id,
+            model_name=model_name,
+            model_version=model_version,
+            prediction_id=prediction_id,
+            existing_artifact_path=existing_artifact_path,
+        )
 
-        Mirrors the idempotency pattern of log_shap_once: if an artifact path
-        is already stored on the model record, this call is a no-op.
-        """
+    def _log_first_inference(
+        self,
+        *,
+        kind: str,
+        label: str,
+        values_key: str,
+        values: Dict[str, Any],
+        run_id: str,
+        model_name: str,
+        model_version: str,
+        prediction_id: str,
+        existing_artifact_path: Optional[str],
+    ) -> Optional[str]:
         if existing_artifact_path:
             return None
         if not run_id:
             raise MlflowLogError("MLflow run id is missing for model.")
+        if not os.getenv("MLFLOW_TRACKING_URI"):
+            raise MlflowLogError("MLFLOW_TRACKING_URI is not set.")
 
         mlflow = self._import_mlflow()
-        uri = tracking_uri or os.getenv("MLFLOW_TRACKING_URI")
-        if uri:
-            mlflow.set_tracking_uri(uri)
-
-        artifact_path = f"embeddings/{model_name}/{model_version}/first_inference.json"
+        artifact_path = f"{kind}/{model_name}/{model_version}/first_inference.json"
         payload = {
             "model_name": model_name,
             "model_version": model_version,
             "prediction_id": prediction_id,
-            "embedding": embedding,
+            values_key: values,
         }
 
         try:
-            client = mlflow.tracking.MlflowClient()
-            client.log_dict(run_id, payload, artifact_path)
+            mlflow.tracking.MlflowClient().log_dict(run_id, payload, artifact_path)
         except Exception as exc:
-            raise MlflowLogError("Failed to log embedding to MLflow.") from exc
+            raise MlflowLogError(f"Failed to log {label} to MLflow.") from exc
 
         return artifact_path
 
     @staticmethod
     def _import_mlflow():
+        # Imported lazily: mlflow takes seconds to import and most requests
+        # never reach this path (it only runs on a model's first inference).
         try:
             import mlflow  # type: ignore
         except Exception as exc:

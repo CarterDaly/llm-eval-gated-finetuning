@@ -1,12 +1,35 @@
-.venv
-__pycache__
-*.pyc
-*.pyo
-*.egg-info
+# Docker matches these from the build-context root and '*' never crosses '/',
+# so nested files need the '**/' prefix.
+
+# VCS, secrets, local environments
 .git
-.pytest_cache
+.github
 .env
-*.db
-migrations/
+.env.*
+.venv
+
+# Local data and artifacts (the image gets models via the models_data volume)
+**/*.db
+**/*.pkl
+instance/
+models/
+mlruns/
+mlartifacts/
+
+# Caches and build output
+**/__pycache__
+**/*.pyc
+**/*.pyo
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.tox
 htmlcov/
 .coverage
+coverage.xml
+
+# Not needed at runtime
+tests/
+CLAUDE.md
+*.ipynb

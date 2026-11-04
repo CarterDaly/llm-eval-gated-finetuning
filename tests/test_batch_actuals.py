@@ -159,9 +159,9 @@ def test_batch_update_persists_actual_value(app, setup):
 
     setup.patch(
         "/predictions/actuals",
-        json={"updates": [{"prediction_id": p1, "actual": "confirmed_hire"}]},
+        json={"updates": [{"prediction_id": p1, "actual": "confirmed"}]},
     )
 
     with app.app_context():
         row = db.session.query(PredictionSQL).filter(PredictionSQL.id == p1).first()
-        assert row.actual == "confirmed_hire"
+        assert row.actual == "confirmed"

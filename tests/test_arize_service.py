@@ -50,7 +50,7 @@ def service():
 def arize_env(monkeypatch):
     """Set required Arize env vars."""
     monkeypatch.setenv("ARIZE_API_KEY", "test-api-key")
-    monkeypatch.setenv("ARIZE_SPACE_KEY", "test-space-key")
+    monkeypatch.setenv("ARIZE_SPACE_ID", "test-space-key")
     monkeypatch.setenv("ARIZE_ENABLED", "true")
     monkeypatch.delenv("ARIZE_ENVIRONMENT", raising=False)
 
@@ -59,9 +59,9 @@ def arize_env(monkeypatch):
 # _is_enabled
 # ---------------------------------------------------------------------------
 
-def test_is_enabled_default_true(service, monkeypatch):
+def test_is_enabled_default_false(service, monkeypatch):
     monkeypatch.delenv("ARIZE_ENABLED", raising=False)
-    assert service._is_enabled() is True
+    assert service._is_enabled() is False
 
 
 def test_is_enabled_explicit_true(service, monkeypatch):
@@ -90,23 +90,23 @@ def test_is_enabled_no_string(service, monkeypatch):
 
 def test_get_credentials_success(service, monkeypatch):
     monkeypatch.setenv("ARIZE_API_KEY", "my-api-key")
-    monkeypatch.setenv("ARIZE_SPACE_KEY", "my-space-key")
-    api_key, space_key = service._get_credentials()
+    monkeypatch.setenv("ARIZE_SPACE_ID", "my-space-key")
+    api_key, space_id = service._get_credentials()
     assert api_key == "my-api-key"
-    assert space_key == "my-space-key"
+    assert space_id == "my-space-key"
 
 
 def test_get_credentials_missing_api_key(service, monkeypatch):
     monkeypatch.delenv("ARIZE_API_KEY", raising=False)
-    monkeypatch.setenv("ARIZE_SPACE_KEY", "my-space-key")
+    monkeypatch.setenv("ARIZE_SPACE_ID", "my-space-key")
     with pytest.raises(ArizeLogError, match="ARIZE_API_KEY"):
         service._get_credentials()
 
 
-def test_get_credentials_missing_space_key(service, monkeypatch):
+def test_get_credentials_missing_space_id(service, monkeypatch):
     monkeypatch.setenv("ARIZE_API_KEY", "my-api-key")
-    monkeypatch.delenv("ARIZE_SPACE_KEY", raising=False)
-    with pytest.raises(ArizeLogError, match="ARIZE_SPACE_KEY"):
+    monkeypatch.delenv("ARIZE_SPACE_ID", raising=False)
+    with pytest.raises(ArizeLogError, match="ARIZE_SPACE_ID"):
         service._get_credentials()
 
 
@@ -403,7 +403,7 @@ def test_log_inference_client_exception_raises(service, monkeypatch, arize_env):
 def test_log_inference_missing_api_key_raises(service, monkeypatch):
     monkeypatch.setenv("ARIZE_ENABLED", "true")
     monkeypatch.delenv("ARIZE_API_KEY", raising=False)
-    monkeypatch.setenv("ARIZE_SPACE_KEY", "sk")
+    monkeypatch.setenv("ARIZE_SPACE_ID", "sk")
 
     with pytest.raises(ArizeLogError, match="ARIZE_API_KEY"):
         service.log_inference(
@@ -415,12 +415,12 @@ def test_log_inference_missing_api_key_raises(service, monkeypatch):
         )
 
 
-def test_log_inference_missing_space_key_raises(service, monkeypatch):
+def test_log_inference_missing_space_id_raises(service, monkeypatch):
     monkeypatch.setenv("ARIZE_ENABLED", "true")
     monkeypatch.setenv("ARIZE_API_KEY", "ak")
-    monkeypatch.delenv("ARIZE_SPACE_KEY", raising=False)
+    monkeypatch.delenv("ARIZE_SPACE_ID", raising=False)
 
-    with pytest.raises(ArizeLogError, match="ARIZE_SPACE_KEY"):
+    with pytest.raises(ArizeLogError, match="ARIZE_SPACE_ID"):
         service.log_inference(
             prediction_id="p11",
             model_name="demo",
@@ -512,7 +512,7 @@ def test_log_actual_client_exception_raises(service, monkeypatch, arize_env):
 def test_log_actual_missing_credentials_raises(service, monkeypatch):
     monkeypatch.setenv("ARIZE_ENABLED", "true")
     monkeypatch.delenv("ARIZE_API_KEY", raising=False)
-    monkeypatch.delenv("ARIZE_SPACE_KEY", raising=False)
+    monkeypatch.delenv("ARIZE_SPACE_ID", raising=False)
 
     with pytest.raises(ArizeLogError):
         service.log_actual(

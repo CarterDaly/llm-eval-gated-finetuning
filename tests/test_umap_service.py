@@ -80,6 +80,7 @@ def test_create_embedding_cache_hit(monkeypatch):
 
     class _CachedUMAP:
         call_count = 0
+
         def transform(self, frame):
             _CachedUMAP.call_count += 1
             return [[0.1, 0.2]]

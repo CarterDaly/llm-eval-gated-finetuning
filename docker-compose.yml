@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   redis:
     image: redis:7-alpine
@@ -28,7 +26,8 @@ services:
       retries: 10
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v3.8.1
+    # Keep this tag equal to the mlflow version pinned in requirements.txt.
+    image: ghcr.io/mlflow/mlflow:v3.17.2
     ports:
       - "5001:5000"
     volumes:
@@ -43,9 +42,15 @@ services:
       --host 0.0.0.0
       --port 5000
       --allowed-hosts "mlflow,mlflow:*,localhost,localhost:*,127.0.0.1:*"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   api:
     build: .
+    restart: unless-stopped
     ports:
       - "5000:5000"
     env_file: .env
@@ -59,13 +64,18 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mlflow:
+        condition: service_healthy
     volumes:
       - models_data:/app/models
+    # Apply migrations once, then hand the process over to gunicorn (exec, so it
+    # receives docker's stop signal directly). Settings: gunicorn.conf.py.
     command: >
-      sh -c "flask db upgrade && gunicorn --bind 0.0.0.0:5000 --workers 2 --timeout 120 'gated_finetune.app:create_app()'"
+      sh -c "flask db upgrade && exec gunicorn 'gated_finetune.app:create_app()'"
 
   worker:
     build: .
+    restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql://app:app@postgres:5432/app
@@ -79,7 +89,7 @@ services:
         condition: service_healthy
     volumes:
       - models_data:/app/models
-    command: celery -A gated_finetune.celery_app worker --loglevel=info --concurrency=2
+    command: celery -A gated_finetune.worker worker --loglevel=info --concurrency=2
 
 volumes:
   postgres_data:

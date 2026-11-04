@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gated_finetune.app import create_app
-from gated_finetune.models.prediction import Explanation, Explanations, Prediction
+from gated_finetune.models.prediction import Explanation, Explanations
 from gated_finetune.services.database.database_client import db
-from gated_finetune.services.database.prediction import ExplanationSQL, ModelSQL, PredictionSQL
+from gated_finetune.services.database.prediction import ModelSQL
 from gated_finetune.services.errors import LLMError
 from gated_finetune.services.explainer_service import explainer_service
 from gated_finetune.services.llm_service import LLMService, llm_service

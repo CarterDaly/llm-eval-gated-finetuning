@@ -91,7 +91,6 @@ def _do_mlflow(model_sql, shap_values: dict, prediction_id: str):
             shap_values=shap_values,
             prediction_id=prediction_id,
             existing_artifact_path=model_sql.shap_artifact_path,
-            tracking_uri=model_sql.mlflow_tracking_uri,
         )
     except MlflowLogError as exc:
         logger.exception("task_mlflow_log_failed")

@@ -1,12 +1,11 @@
 from flask import Blueprint
 
-from prometheus_client import generate_latest
-
-from gated_finetune.monitoring import registry
+from gated_finetune.monitoring import render_metrics
 
 metrics = Blueprint("metrics", __name__)
 
 
 @metrics.route("/metrics", methods=["GET"])
 def get_metrics():
-    return generate_latest(registry), 200, {'Content-Type': 'text/plain; version=0.0.4; charset=utf-8'}
+    body, content_type = render_metrics()
+    return body, 200, {"Content-Type": content_type}

@@ -1,5 +1,7 @@
 from typing import Any, Dict, Tuple
 
+import numpy as np
+
 from gated_finetune.models.prediction import Prediction, Model, Explanation, Explanations
 from gated_finetune.services.errors import ExplanationError
 
@@ -68,11 +70,6 @@ class ExplainerService:
 
     @staticmethod
     def _to_shap_mapping(shap_result, feature_names: list[str]) -> Dict[str, float]:
-        try:
-            import numpy as np
-        except Exception as exc:
-            raise ExplanationError("NumPy is required for SHAP value parsing.") from exc
-
         values = getattr(shap_result, "values", shap_result)
         if isinstance(values, list):
             values = values[0]
@@ -91,6 +88,6 @@ class ExplainerService:
             raise ExplanationError("SHAP output does not match feature count.")
 
         return {name: float(value) for name, value in zip(feature_names, vector)}
-    
+
 
 explainer_service = ExplainerService()

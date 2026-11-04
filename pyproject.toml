@@ -1,0 +1,12 @@
+# Tool configuration only; the app is not packaged or published.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# External services are always mocked, so any test that opens a network
+# connection fails (pytest-socket).
+addopts = "--disable-socket"
+
+[tool.coverage.run]
+source = ["gated_finetune"]
+branch = true
+relative_files = true

@@ -1,0 +1,9 @@
+# Development and CI tools. requirements-dev.txt is generated from this file
+# (see requirements.in for the command) and includes the runtime lock.
+-r requirements.in
+-c requirements.txt
+
+pytest
+pytest-socket          # tests fail if they open a network connection
+coverage
+flake8

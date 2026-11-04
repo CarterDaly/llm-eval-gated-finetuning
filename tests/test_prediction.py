@@ -445,22 +445,6 @@ def test_create_prediction_invalid_input_generic_returns_400(client):
     assert response.status_code == 400
 
 
-def test_create_prediction_legacy_endpoint(app, client, tmp_path, monkeypatch):
-    """The /model/<name>/version/<ver> legacy route should work identically."""
-    _create_model(app, tmp_path, name="legacy", version="1")
-
-    monkeypatch.setattr(explainer_service, "create_explanation", _fake_explainer_shap)
-    monkeypatch.setattr(umap_service, "create_embedding", _fake_embedding)
-    monkeypatch.setattr(mlflow_service, "log_shap_once", _fake_mlflow)
-    monkeypatch.setattr(arize_service, "log_inference", lambda **_: True)
-
-    response = client.post(
-        "/model/legacy/version/1",
-        json={"features": {"feature_1": 1, "feature_2": 2}},
-    )
-    assert response.status_code == 201
-
-
 def test_get_prediction_not_found_returns_404(client):
     response = client.get("/predictions/nonexistent-id")
     assert response.status_code == 404
@@ -560,7 +544,6 @@ def test_create_prediction_inference_error_returns_500(app, client, tmp_path, mo
     _create_model(app, tmp_path, name="infer-fail", version="1")
 
     def fake_inference(model, prediction):
-        from gated_finetune.services.errors import InferenceError
         raise InferenceError("Inference exploded.")
 
     monkeypatch.setattr(model_service, "create_inference", fake_inference)

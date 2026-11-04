@@ -2,9 +2,6 @@
 
 def init_blueprints(app):
 
-    from gated_finetune.routes.user import user
-    app.register_blueprint(user)
-
     from gated_finetune.routes.prediction import prediction
     app.register_blueprint(prediction)
 

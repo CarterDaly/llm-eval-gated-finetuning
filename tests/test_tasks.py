@@ -15,7 +15,6 @@ from gated_finetune.services.errors import (
     ExplanationError,
     InferenceError,
     MlflowLogError,
-    ModelLoadError,
 )
 
 

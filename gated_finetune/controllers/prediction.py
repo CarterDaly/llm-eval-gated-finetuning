@@ -1,11 +1,18 @@
 import logging
 from datetime import datetime, timezone
 
-from flask import jsonify, request
+from flask import jsonify
 
-from pydantic import ValidationError
-
-from gated_finetune.models.prediction import ActualUpdateRequest, BatchActualUpdateRequest, Model, Prediction, PredictionRequest, Explanations, UmapConfig
+from gated_finetune.controllers.common import missing_fields_message, parse_body
+from gated_finetune.models.prediction import (
+    ActualUpdateRequest,
+    BatchActualUpdateRequest,
+    Explanations,
+    Model,
+    Prediction,
+    PredictionRequest,
+    UmapConfig,
+)
 from gated_finetune.services.database.database_client import db
 from gated_finetune.services.database.prediction import ExplanationSQL, ModelSQL, PredictionSQL
 from gated_finetune.services.arize_service import arize_service
@@ -24,39 +31,7 @@ from gated_finetune.services.mlflow_service import mlflow_service
 from gated_finetune.services.model_service import model_service
 from gated_finetune.services.umap_service import umap_service
 
-
-
 logger = logging.getLogger(__name__)
-
-
-def _missing_fields_message(fields: list[str]) -> str:
-    return "Missing required fields: {}".format(", ".join(sorted(fields)))
-
-
-def _parse_body(model_class):
-    """Parse and validate a JSON request body against a Pydantic model.
-
-    Returns (model_instance, None) on success or (None, error_response) on failure.
-    Keeps the existing error contract so callers and tests are unaffected.
-    """
-    data = request.get_json(silent=True)
-    required = [n for n, f in model_class.model_fields.items() if f.is_required()]
-    if not isinstance(data, dict):
-        return None, (jsonify({"error": _missing_fields_message(required)}), 400)
-    try:
-        return model_class.model_validate(data), None
-    except ValidationError as exc:
-        errors = exc.errors()
-        missing = [str(err["loc"][0]) for err in errors if err.get("type") == "missing"]
-        if missing:
-            return None, (jsonify({"error": _missing_fields_message(missing)}), 400)
-        if any("umap" in err.get("loc", ()) for err in errors):
-            return None, (jsonify({"error": "Invalid UMAP configuration"}), 400)
-        return None, (jsonify({"error": "Invalid request body"}), 400)
-
-
-def _get_prediction_request():
-    return _parse_body(PredictionRequest)
 
 
 def _extract_shap_values(explanations: Explanations | None) -> dict:
@@ -116,7 +91,7 @@ def _validate_feature_presence(model: Model, prediction_request: PredictionReque
         return None
     missing = set(model.feature_names) - set(prediction_request.features.keys())
     if missing:
-        return jsonify({"error": _missing_fields_message(list(missing))}), 400
+        return jsonify({"error": missing_fields_message(list(missing))}), 400
     return None
 
 
@@ -147,7 +122,6 @@ def _log_shap_values(model_sql: ModelSQL, shap_values: dict, prediction_id: str)
             shap_values=shap_values,
             prediction_id=prediction_id,
             existing_artifact_path=model_sql.shap_artifact_path,
-            tracking_uri=model_sql.mlflow_tracking_uri,
         )
     except MlflowLogError as exc:
         logger.exception("mlflow_log_failed")
@@ -181,7 +155,6 @@ def _log_embedding_values(model_sql: ModelSQL, embedding: dict, prediction_id: s
             embedding=coords,
             prediction_id=prediction_id,
             existing_artifact_path=model_sql.embedding_artifact_path,
-            tracking_uri=model_sql.mlflow_tracking_uri,
         )
     except MlflowLogError as exc:
         logger.exception("mlflow_embedding_log_failed")
@@ -193,6 +166,28 @@ def _log_embedding_values(model_sql: ModelSQL, embedding: dict, prediction_id: s
         db.session.add(model_sql)
 
     return artifact_path, None
+
+
+def _explain_and_log(model: Model, model_sql: ModelSQL, prediction: Prediction):
+    """Compute SHAP values and log them to MLflow on the model's first inference."""
+    shap_values, error = _run_explanation(model, prediction)
+    if error:
+        return None, error
+    _, error = _log_shap_values(model_sql, shap_values, prediction.id)
+    if error:
+        return None, error
+    return shap_values, None
+
+
+def _embed_and_log(model: Model, model_sql: ModelSQL, prediction: Prediction, prediction_request: PredictionRequest):
+    """Compute the UMAP embedding and log it to MLflow on the model's first inference."""
+    embedding, error = _run_embedding(model, prediction, prediction_request)
+    if error:
+        return None, error
+    _, error = _log_embedding_values(model_sql, embedding, prediction.id)
+    if error:
+        return None, error
+    return embedding, None
 
 
 def _log_arize_inference(prediction: Prediction, model: Model) -> None:
@@ -246,7 +241,7 @@ class PredictionController:
 
     @staticmethod
     def create_prediction(model_name: str, model_version: str) -> tuple[str, int]:
-        prediction_request, error = _get_prediction_request()
+        prediction_request, error = parse_body(PredictionRequest)
         if error:
             return error
 
@@ -274,19 +269,11 @@ class PredictionController:
         if error:
             return error
 
-        shap_values, error = _run_explanation(model, prediction)
+        shap_values, error = _explain_and_log(model, model_sql, prediction)
         if error:
             return error
 
-        _, error = _log_shap_values(model_sql, shap_values, prediction.id)
-        if error:
-            return error
-
-        embedding, error = _run_embedding(model, prediction, prediction_request)
-        if error:
-            return error
-
-        _, error = _log_embedding_values(model_sql, embedding, prediction.id)
+        embedding, error = _embed_and_log(model, model_sql, prediction, prediction_request)
         if error:
             return error
 
@@ -377,7 +364,7 @@ class PredictionController:
 
     @staticmethod
     def update_actual(prediction_id: str) -> tuple[str, int]:
-        body, error = _parse_body(ActualUpdateRequest)
+        body, error = parse_body(ActualUpdateRequest)
         if error:
             return error
 
@@ -403,7 +390,7 @@ class PredictionController:
 
     @staticmethod
     def update_actuals_batch() -> tuple[str, int]:
-        body, error = _parse_body(BatchActualUpdateRequest)
+        body, error = parse_body(BatchActualUpdateRequest)
         if error:
             return error
 

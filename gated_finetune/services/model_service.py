@@ -80,6 +80,6 @@ class ModelService:
         if "torch" in class_name or "keras" in class_name or "tensorflow" in class_name:
             return "deep"
         return "generic"
-    
+
 
 model_service = ModelService()

@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from datetime import datetime
 
+import pandas as pd
 from pydantic import BaseModel, Field, PrivateAttr, field_validator
 
 from gated_finetune.models.base import LocalBaseModel
@@ -110,11 +111,6 @@ class Prediction(LocalBaseModel):
             return [name for name in override if name in self.features]
         return list(self.features.keys())
 
-    def get_pandas_frame_of_inputs(self, feature_names: Optional[List[str]] = None):
+    def get_pandas_frame_of_inputs(self, feature_names: Optional[List[str]] = None) -> pd.DataFrame:
         names = self.get_feature_names(feature_names)
-        row = {name: self.features.get(name) for name in names}
-        try:
-            import pandas as pd
-        except ImportError:
-            return [list(row.values())]
-        return pd.DataFrame([row])
+        return pd.DataFrame([{name: self.features.get(name) for name in names}])

@@ -1,0 +1,5 @@
+[flake8]
+max-line-length = 127
+max-complexity = 10
+# migrations/versions holds Alembic-generated files, which keep Alembic's layout.
+exclude = .git,__pycache__,.venv,migrations/versions
