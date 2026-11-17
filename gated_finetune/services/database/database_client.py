@@ -35,4 +35,4 @@ def init_db(app) -> None:
 
     # Import the models so their tables are registered on db.metadata, which
     # Alembic compares against when autogenerating a migration.
-    from gated_finetune.services.database import prediction  # noqa: F401
+    from gated_finetune.services.database import generation, prediction  # noqa: F401

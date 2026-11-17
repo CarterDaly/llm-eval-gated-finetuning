@@ -28,3 +28,29 @@ def test_app_startup_does_not_create_tables(tmp_path, monkeypatch):
     with app.app_context():
         with db.engine.connect() as conn:
             assert db.inspect(conn).get_table_names() == []
+
+
+def test_llm_migration_marks_existing_models_classical(tmp_path, monkeypatch):
+    """Models registered before LLM support existed must come out as kind='classical',
+    and the migration must be reversible."""
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'old.db'}")
+    app = create_app()
+    with app.app_context():
+        flask_migrate.upgrade(directory=MIGRATIONS_DIR, revision="427c947baba1")
+        with db.engine.begin() as conn:
+            conn.execute(db.text(
+                "INSERT INTO models (id, model_type, model_name, model_version) "
+                "VALUES ('model-old-v1', 'tree', 'old', 'v1')"
+            ))
+
+        flask_migrate.upgrade(directory=MIGRATIONS_DIR)
+        with db.engine.connect() as conn:
+            kind = conn.execute(db.text("SELECT kind FROM models WHERE id = 'model-old-v1'")).scalar_one()
+        assert kind == "classical"
+
+        flask_migrate.downgrade(directory=MIGRATIONS_DIR, revision="427c947baba1")
+        with db.engine.connect() as conn:
+            tables = db.inspect(conn).get_table_names()
+            columns = {c["name"] for c in db.inspect(conn).get_columns("models")}
+        assert "generations" not in tables
+        assert "kind" not in columns

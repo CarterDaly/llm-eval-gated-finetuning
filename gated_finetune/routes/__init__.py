@@ -13,3 +13,6 @@ def init_blueprints(app):
 
     from gated_finetune.routes.model import model
     app.register_blueprint(model)
+
+    from gated_finetune.routes.generation import generation
+    app.register_blueprint(generation)

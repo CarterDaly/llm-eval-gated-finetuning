@@ -32,6 +32,8 @@ def _query_model(model_name: str, model_version: str):
     )
     if model_sql is None:
         return None, {"error": "Model not found", "status_code": 404}
+    if model_sql.kind != "classical":
+        return None, {"error": "This model is an LLM; send requests to /generations instead", "status_code": 400}
 
     model = Model(
         id=model_sql.id,

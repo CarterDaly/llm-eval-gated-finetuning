@@ -33,6 +33,8 @@ from gated_finetune.services.umap_service import umap_service
 
 logger = logging.getLogger(__name__)
 
+_LLM_ON_CLASSICAL_ENDPOINT = "This model is an LLM; send requests to /generations instead"
+
 
 def _extract_shap_values(explanations: Explanations | None) -> dict:
     if not explanations:
@@ -63,6 +65,8 @@ def _get_model_record(model_name: str, model_version: str):
     )
     if model_sql is None:
         return None, None, (jsonify({"error": "Model not found"}), 404)
+    if model_sql.kind != "classical":
+        return None, None, (jsonify({"error": _LLM_ON_CLASSICAL_ENDPOINT}), 400)
 
     model = Model(
         id=model_sql.id,

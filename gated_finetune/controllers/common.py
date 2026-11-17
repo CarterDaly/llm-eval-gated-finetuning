@@ -25,4 +25,8 @@ def parse_body(model_class: type[BaseModel]):
             return None, (jsonify({"error": missing_fields_message(missing)}), 400)
         if any("umap" in err.get("loc", ()) for err in errors):
             return None, (jsonify({"error": "Invalid UMAP configuration"}), 400)
-        return None, (jsonify({"error": "Invalid request body"}), 400)
+        details = [
+            "{}: {}".format(".".join(str(part) for part in err["loc"]) or "body", err["msg"])
+            for err in errors
+        ]
+        return None, (jsonify({"error": "Invalid request body", "details": details}), 400)

@@ -24,3 +24,7 @@ class ArizeLogError(Exception):
 
 class LLMError(Exception):
     """Raised when a local LLM (Ollama) API call fails."""
+
+
+class GenerationBackendError(Exception):
+    """Raised when an LLM serving backend (vLLM, transformers) fails to generate."""

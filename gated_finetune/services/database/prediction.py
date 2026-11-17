@@ -35,6 +35,8 @@ class ModelSQL(db.Model):
 
     id: Mapped[str] = mapped_column(db.String(120), primary_key=True)
 
+    # "classical" (pickled sklearn-style model) or "llm" (base model + optional LoRA adapter)
+    kind: Mapped[str] = mapped_column(db.String(20), nullable=False, server_default="classical")
     model_type: Mapped[str] = mapped_column(db.String(120), nullable=False)
     model_name: Mapped[str] = mapped_column(db.String(4000), nullable=False)
     model_version: Mapped[str] = mapped_column(db.String(4000), nullable=False)
@@ -46,10 +48,22 @@ class ModelSQL(db.Model):
     embedding_artifact_path: Mapped[str] = mapped_column(db.String(4000), nullable=True)
     embedding_logged_at: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
 
+    # LLM-only fields (null for classical models)
+    base_model: Mapped[str] = mapped_column(db.String(400), nullable=True)
+    base_model_revision: Mapped[str] = mapped_column(db.String(120), nullable=True)
+    adapter_uri: Mapped[str] = mapped_column(db.String(4000), nullable=True)
+    adapter_sha256: Mapped[str] = mapped_column(db.String(64), nullable=True)
+    generation_config: Mapped[dict] = mapped_column(db.JSON, nullable=True)
+    parent_model_id: Mapped[str] = mapped_column(db.String(120), ForeignKey("models.id"), nullable=True)
+
     created: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
     updated: Mapped[datetime] = mapped_column(db.DateTime, nullable=True)
 
     predictions: Mapped[List['PredictionSQL']] = relationship(
+        back_populates="model",
+        cascade="all, delete-orphan",
+    )
+    generations: Mapped[List['GenerationSQL']] = relationship(  # noqa: F821
         back_populates="model",
         cascade="all, delete-orphan",
     )
