@@ -70,6 +70,26 @@ def fake_service(monkeypatch):
     return service
 
 
+class _FakeTask:
+    """Stands in for the embedding task; records what was queued."""
+
+    def __init__(self):
+        self.queued = []
+        self.fail = False
+
+    def apply_async(self, args, retry):
+        if self.fail:
+            raise ConnectionError("redis is down")
+        self.queued.append({"args": args, "retry": retry})
+
+
+@pytest.fixture(autouse=True)
+def fake_embedding_task(monkeypatch):
+    task = _FakeTask()
+    monkeypatch.setattr(generation_controller_module, "embed_generation_prompt", task)
+    return task
+
+
 @pytest.fixture
 def fake_clock(monkeypatch):
     """perf_counter returns 10.0 then 10.25, so the backend call takes 250 ms."""
@@ -196,3 +216,33 @@ def test_generation_requires_api_key_when_set(llm, fake_service, monkeypatch):
     with authed_app.test_client() as authed:
         assert authed.post(URL, json={"messages": MESSAGES}).status_code == 401
         assert authed.post(URL, json={"messages": MESSAGES}, headers={"X-API-Key": "k"}).status_code == 201
+
+
+def test_prompt_embedding_is_queued_after_the_row_is_stored(client, llm, fake_service, fake_embedding_task):
+    body = client.post(URL, json={"messages": MESSAGES}).get_json()
+    assert fake_embedding_task.queued == [{"args": [body["generation_id"]], "retry": False}]
+
+
+def test_failed_generations_are_embedded_too(client, llm, fake_service, fake_embedding_task):
+    fake_service.outcome = GenerationBackendError("down")
+    body = client.post(URL, json={"messages": MESSAGES}).get_json()
+    assert fake_embedding_task.queued[0]["args"] == [body["generation_id"]]
+
+
+def test_broker_outage_does_not_fail_the_request(app, client, llm, fake_service, fake_embedding_task):
+    fake_embedding_task.fail = True
+    resp = client.post(URL, json={"messages": MESSAGES})
+    assert resp.status_code == 201
+    assert _stored(app, resp.get_json()["generation_id"]).prompt_embedding is None
+
+
+def test_invalid_request_queues_nothing(client, llm, fake_service, fake_embedding_task):
+    client.post(URL, json={"messages": []})
+    assert fake_embedding_task.queued == []
+
+
+def test_get_generation_shows_embedding_fields(client, llm, fake_service):
+    created = client.post(URL, json={"messages": MESSAGES}).get_json()
+    body = client.get(f"/generations/{created['generation_id']}").get_json()
+    assert body["prompt_embedding"] is None  # the (faked) task hasn't run
+    assert body["embedding_model"] is None

@@ -8,4 +8,5 @@ def test_worker_registers_tasks_and_binds_flask_app():
     registered = set(worker.celery.tasks)
     assert "prediction_tasks.run_short_prediction" in registered
     assert "prediction_tasks.run_long_prediction" in registered
+    assert "generation_tasks.embed_generation_prompt" in registered
     assert worker.celery.flask_app is not None

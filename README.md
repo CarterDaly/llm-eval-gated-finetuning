@@ -30,6 +30,7 @@
 | Model registry, each model linked to its MLflow run | `POST /models`, `GET /models` |
 | LLM registry: base model pinned to a Hugging Face commit, optional LoRA adapter (URI + SHA-256), lineage to the parent model | `POST /models` (JSON) |
 | LLM generation through vLLM, each request logged with messages, tools, decoding params, output, tokens, latency and estimated cost | `POST /generations/model/<name>/version/<version>`, `GET /generations/<id>` |
+| Prompt embeddings for every LLM request, computed in the background (for drift monitoring and failure clustering) | Celery task, `BAAI/bge-small-en-v1.5` via fastembed on CPU |
 | Prediction serving and logging (with SHAP values and a UMAP embedding) | `POST /predictions/model/<name>/version/<version>`, `GET /predictions/<id>` |
 | Feedback capture (ground truth, single and batch) | `PATCH /predictions/<id>/actual`, `PATCH /predictions/actuals` |
 | Plain-language explanation of a prediction by a local LLM (Ollama) | `GET /predictions/<id>/explainer` |
@@ -59,7 +60,7 @@ cp .env.example .env                 # SQLite database, read by the flask CLI
 docker compose up -d mlflow redis    # tracking server and broker
 flask db upgrade                     # create the schema
 flask run                            # API on :5000
-celery -A gated_finetune.worker worker --loglevel=info   # only for /tasks
+celery -A gated_finetune.worker worker --pool=solo --loglevel=info   # /tasks and prompt embeddings
 ```
 
 Checks (the same ones CI runs):
@@ -68,6 +69,8 @@ Checks (the same ones CI runs):
 flake8
 pytest            # tests never touch the network; external services are mocked
 ```
+
+**Why `--pool=solo` on the Mac:** Celery's default prefork pool fails every task on macOS (`ValueError: not enough values to unpack`), because macOS starts pool processes with `spawn` and Celery only sets up its per-process state for `fork`. The solo pool runs tasks one at a time in the worker process, which is fine for development. The Docker worker runs on Linux, which forks, and keeps the prefork pool.
 
 **Changing the schema:** edit the models in `gated_finetune/services/database/`, then run `flask db migrate -m "describe the change"`, review the generated file in `migrations/versions/`, and commit it. `tests/test_migrations.py` fails if the models and migrations disagree.
 
@@ -106,6 +109,8 @@ The revision must be a commit hash, not a branch, so a model version always mean
 
 **Serving LLMs with vLLM.** vLLM runs on a Linux GPU machine (on Windows, inside WSL2), separately from this service. Start it with the same base model and revision you registered, for example `vllm serve Qwen/Qwen2.5-1.5B-Instruct --revision <hash>`, and point `VLLM_BASE_URL` at it. A model with an adapter is requested from vLLM under its model id (e.g. `model-fc-bot-v2`), so load the adapter under that name (`--enable-lora --lora-modules model-fc-bot-v2=<path>`). Don't pass `--chat-template`: vLLM must use the base model's own template, the one training uses. Tools are sent with `tool_choice: "none"`, so the raw output, `<tool_call>` tags included, is stored and parsed by this service's code checks rather than by vLLM.
 
+**Prompt embeddings.** After a generation is stored, a Celery task embeds the request's user messages (system prompts are the same for every request and would only add noise) and saves the 384-dimension vector with the model's name. The model is fixed in `prompt_embedding_service.py`, because vectors from different models can't be compared. fastembed runs a quantized ONNX copy of the model on the CPU and downloads it (about 70 MB) on first use into `FASTEMBED_CACHE_PATH`. If the broker is down the generation still succeeds; its `prompt_embedding` stays empty.
+
 **Security note:** `POST /models` accepts pickle files, and unpickling runs code from the file. Only register models you trust, and set `API_KEY` whenever the API is reachable by anyone else.
 
 ## Configuration
@@ -124,12 +129,13 @@ All settings are environment variables; `.env.example` lists them with defaults.
 | `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | Local LLM for the explainer endpoint |
 | `LLM_BACKEND` | Serving backend for `/generations`: `vllm` (default) |
 | `VLLM_BASE_URL`, `VLLM_API_KEY`, `VLLM_TIMEOUT` | vLLM server URL (default `http://localhost:8000`), its `--api-key` if set, request timeout in seconds (default 60) |
+| `FASTEMBED_CACHE_PATH` | Where the prompt embedding model is cached (default: the system temp directory; set and volume-mounted in Docker) |
 | `LLM_COST_PER_1K_TOKENS` | Optional USD rate used to estimate `cost_usd` per generation; unset leaves it empty |
 | `GUNICORN_BIND`, `GUNICORN_WORKERS` | Optional overrides for `gunicorn.conf.py` |
 
 ## Roadmap
 
-- [ ] LLM model type: base models + LoRA adapters and vLLM serving (done); local transformers backend and prompt embeddings (in progress)
+- [ ] LLM model type: base models + LoRA adapters, vLLM serving and prompt embeddings (done); local transformers backend (next)
 - [ ] Eval service: golden + vault sets, verifiers, judge calibration (Cohen's κ), bootstrap gate
 - [ ] Dataset builder: feedback → SFT/DPO, dedup, decontamination, MLflow lineage
 - [ ] Training jobs: TRL LoRA SFT → DPO on rented GPUs, adapters registered as candidates

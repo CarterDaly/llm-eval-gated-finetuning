@@ -7,7 +7,7 @@
 flask
 flask-sqlalchemy
 flask-migrate
-psycopg2-binary
+psycopg[binary]        # Postgres driver; SQLAlchemy 2.1's default for postgresql:// URLs
 pydantic
 python-dotenv          # lets the flask CLI read FLASK_APP etc. from .env
 gunicorn
@@ -27,5 +27,10 @@ pandas
 shap
 umap-learn
 
-# Ollama client for LLM explanations
+# HTTP client: Ollama explanations and the vLLM backend
 requests
+
+# Prompt embeddings for LLM requests (ONNX on CPU, no torch). The embedding model
+# itself is pinned in prompt_embedding_service.py; fastembed's version pins where
+# that model's weights are downloaded from.
+fastembed

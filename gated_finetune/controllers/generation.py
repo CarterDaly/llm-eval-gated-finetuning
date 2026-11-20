@@ -14,6 +14,7 @@ from gated_finetune.services.database.generation import GenerationSQL
 from gated_finetune.services.database.prediction import ModelSQL
 from gated_finetune.services.errors import GenerationBackendError
 from gated_finetune.services.generation_service import generation_service
+from gated_finetune.tasks.generation_tasks import embed_generation_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,19 @@ def _resolve_params(model_sql: ModelSQL, body: GenerationRequest) -> dict:
     if body.params is not None:
         params.update(body.params.model_dump(exclude_unset=True))
     return params
+
+
+def _enqueue_prompt_embedding(generation_id: str) -> None:
+    """Queue the prompt embedding; never fail the request over it.
+
+    retry=False: if the broker is down, give up after one connection attempt
+    instead of retrying while the client waits. The row then simply has no
+    embedding, which is visible (prompt_embedding is null) and can be backfilled.
+    """
+    try:
+        embed_generation_prompt.apply_async(args=[generation_id], retry=False)
+    except Exception as exc:
+        logger.warning("prompt_embedding_enqueue_failed id=%s error=%s", generation_id, exc)
 
 
 def _generation_json(row: GenerationSQL) -> dict:
@@ -123,6 +137,7 @@ class GenerationController:
             db.session.rollback()
             return jsonify({"error": "Failed to store generation"}), 500
 
+        _enqueue_prompt_embedding(row.id)
         return jsonify(_generation_json(row)), status
 
     @staticmethod
@@ -131,7 +146,13 @@ class GenerationController:
         if row is None:
             return jsonify({"error": "Generation not found"}), 404
         data = _generation_json(row)
-        data.update({"messages": row.messages, "tools": row.tools})
+        data.update({
+            "messages": row.messages,
+            "tools": row.tools,
+            # null until the background embedding task has run
+            "prompt_embedding": row.prompt_embedding,
+            "embedding_model": row.embedding_model,
+        })
         return jsonify(data), 200
 
 

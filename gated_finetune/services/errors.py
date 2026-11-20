@@ -28,3 +28,7 @@ class LLMError(Exception):
 
 class GenerationBackendError(Exception):
     """Raised when an LLM serving backend (vLLM, transformers) fails to generate."""
+
+
+class PromptEmbeddingError(Exception):
+    """Raised when an LLM request's prompt embedding cannot be computed."""

@@ -89,9 +89,12 @@ services:
         condition: service_healthy
     volumes:
       - models_data:/app/models
+      # Prompt embedding model weights (about 70 MB), downloaded once, not per container
+      - fastembed_cache:/app/.cache/fastembed
     command: celery -A gated_finetune.worker worker --loglevel=info --concurrency=2
 
 volumes:
   postgres_data:
   models_data:
   mlflow_data:
+  fastembed_cache:

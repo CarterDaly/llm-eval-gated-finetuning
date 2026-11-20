@@ -7,6 +7,6 @@ started from celery_app alone rejects every job as unregistered.
 """
 from gated_finetune.app import create_app
 from gated_finetune.celery_app import celery  # noqa: F401  (located by `-A`)
-from gated_finetune.tasks import prediction_tasks  # noqa: F401  (registers tasks)
+from gated_finetune.tasks import generation_tasks, prediction_tasks  # noqa: F401  (registers tasks)
 
 flask_app = create_app()

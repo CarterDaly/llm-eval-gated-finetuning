@@ -6,21 +6,23 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# System deps for psycopg2-binary and umap-learn
+# Compilers for any dependency without a prebuilt wheel. (The Postgres driver,
+# psycopg[binary], bundles its own libpq.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Run as an unprivileged user. The code stays root-owned (read-only to the app);
-# only /app/models, where uploaded models are saved, is writable. Creating it
-# here means the named volume mounted over it starts out owned by this user.
+# only /app/models (uploaded models) and /app/.cache/fastembed (the prompt
+# embedding model's weights) are writable. Creating them here means the named
+# volumes mounted over them start out owned by this user.
+ENV FASTEMBED_CACHE_PATH=/app/.cache/fastembed
 RUN useradd --create-home --uid 1000 app \
-    && mkdir -p /app/models \
-    && chown app /app/models
+    && mkdir -p /app/models /app/.cache/fastembed \
+    && chown app /app/models /app/.cache/fastembed
 
 COPY . .
 
